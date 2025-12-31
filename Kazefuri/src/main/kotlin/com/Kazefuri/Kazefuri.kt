@@ -1,131 +1,97 @@
-package com.lagradost.cloudstream3.plugins
+package com.kazefuri
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
-import com.lagradost.cloudstream3.extractors.*
 import org.jsoup.nodes.Element
-import java.util.*
 
-class KazefuriPlugin : MainAPI() {
+class Kazefuri : MainAPI() {
     override var mainUrl = "https://sv3.kazefuri.cloud"
     override var name = "Kazefuri"
     override val hasMainPage = true
+    override var lang = "id"
     override val supportedTypes = setOf(TvType.Anime)
-    
-    // ==================== SCRAPING UTILITAS ====================
-    private suspend fun scrapVideoFromIframe(iframeUrl: String, callback: (ExtractorLink) -> Unit): Boolean {
-        return try {
-            val iframeDoc = app.get(iframeUrl).document
-            
-            // Teknik 1: Cari source video langsung di iframe
-            val directSources = iframeDoc.select("source[src]").mapNotNull {
-                val src = it.attr("src")
-                if (src.contains(".m3u8") || src.contains(".mp4")) {
-                    ExtractorLink(
-                        name,
-                        "Direct Source",
-                        src,
-                        "$mainUrl/",
-                        Qualities.Unknown.value,
-                        isM3u8 = src.contains(".m3u8")
-                    )
-                } else null
-            }
-            
-            // Teknik 2: Ekstrak dari JavaScript variables
-            val scriptContent = iframeDoc.select("script").html()
-            val videoRegex = Regex("""(?i)(src|file|url)\s*[=:]\s*['"]([^'"]+\.(?:m3u8|mp4|mkv)[^'"]*)['"]""")
-            val jsMatches = videoRegex.findAll(scriptContent).map {
-                ExtractorLink(
-                    name,
-                    "JS Variable",
-                    it.groupValues[2],
-                    iframeUrl,
-                    Qualities.Unknown.value,
-                    isM3u8 = it.groupValues[2].contains(".m3u8")
-                )
-            }.toList()
-            
-            // Teknik 3: Cari di window.player atau player config
-            val playerConfigRegex = Regex("""player\.setup\((\{.*?\})""", RegexOption.DOT_MATCHES_ALL)
-            playerConfigRegex.find(scriptContent)?.groupValues?.get(1)?.let { jsonStr ->
-                // Parse JSON sederhana untuk file/video
-                val fileMatch = Regex(""""file"\s*:\s*"([^"]+)"""").find(jsonStr)
-                fileMatch?.groupValues?.get(1)?.let { videoUrl ->
-                    callback(ExtractorLink(
-                        name,
-                        "Player Config",
-                        videoUrl,
-                        iframeUrl,
-                        Qualities.Unknown.value
-                    ))
-                }
-            }
-            
-            // Gabungkan semua hasil
-            (directSources + jsMatches).forEach { callback(it) }
-            
-            directSources.isNotEmpty() || jsMatches.isNotEmpty()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
-    
-    private suspend fun extractFromEmbedApi(episodeId: String, callback: (ExtractorLink) -> Unit) {
-        // Coba berbagai pola API yang umum
-        val apiPatterns = listOf(
-            "$mainUrl/api/player?id=$episodeId",
-            "$mainUrl/embed/$episodeId",
-            "$mainUrl/player?episode=$episodeId",
-            "$mainUrl/ajax/player?hash=$episodeId"
-        )
+
+    // Halaman utama sederhana
+    override val mainPage = mainPageOf(
+        "" to "Series Terbaru"
+    )
+
+    // Main page scraper
+    override suspend fun getMainPage(
+        page: Int,
+        request: MainPageRequest
+    ): HomePageResponse {
+        val url = if (page > 1) "$mainUrl/page/$page/" else mainUrl
+        val document = app.get(url).document
         
-        for (apiUrl in apiPatterns) {
-            try {
-                val response = app.get(apiUrl)
-                if (response.isSuccessful) {
-                    val json = response.parsedSafe<Map<String, Any>>()
-                    
-                    // Coba berbagai key yang mungkin
-                    val videoKeys = listOf("url", "source", "file", "video_url", "m3u8", "mp4")
-                    for (key in videoKeys) {
-                        (json?.get(key) as? String)?.let { videoUrl ->
-                            if (videoUrl.isNotBlank() && (videoUrl.contains("://") || videoUrl.startsWith("//"))) {
-                                val finalUrl = if (videoUrl.startsWith("//")) "https:$videoUrl" else videoUrl
-                                callback(ExtractorLink(
-                                    name,
-                                    "API Source",
-                                    finalUrl,
-                                    apiUrl,
-                                    Qualities.Unknown.value,
-                                    isM3u8 = finalUrl.contains(".m3u8")
-                                ))
-                                return
-                            }
-                        }
-                    }
-                    
-                    // Coba nested sources
-                    (json?.get("sources") as? List<Map<String, Any>>)?.forEach { source ->
-                        (source["file"] as? String)?.let { videoUrl ->
-                            callback(ExtractorLink(
-                                name,
-                                "API Source",
-                                videoUrl,
-                                apiUrl,
-                                (source["label"] as? String)?.let { parseQuality(it) } ?: Qualities.Unknown.value
-                            ))
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                continue
+        val items = document.select("section, article, div.container > div").mapNotNull { element ->
+            val titleEl = element.selectFirst("h2, h3, .title")
+            val linkEl = element.selectFirst("a")
+            val imgEl = element.selectFirst("img")
+            
+            if (titleEl == null || linkEl == null) return@mapNotNull null
+            
+            val title = titleEl.text()
+            val href = linkEl.attr("href")
+            val poster = imgEl?.attr("src") ?: imgEl?.attr("data-src")
+            
+            newAnimeSearchResponse(title, fixUrl(href)) {
+                this.posterUrl = fixUrlNull(poster)
             }
         }
+        
+        return newHomePageResponse(request.name, items, hasNext = items.isNotEmpty())
     }
-    
-    // ==================== LOAD LINKS - MULTI-LEVEL SCRAPING ====================
+
+    // Search function
+    override suspend fun search(query: String): List<SearchResponse> {
+        // Kazefuri mungkin tidak punya search, jadi scrape dari main page
+        val document = app.get(mainUrl).document
+        
+        return document.select("section, article, div.container > div").mapNotNull { element ->
+            val titleEl = element.selectFirst("h2, h3, .title")
+            val linkEl = element.selectFirst("a")
+            
+            if (titleEl == null || linkEl == null) return@mapNotNull null
+            
+            val title = titleEl.text()
+            val href = linkEl.attr("href")
+            
+            if (!title.contains(query, ignoreCase = true)) return@mapNotNull null
+            
+            newAnimeSearchResponse(title, fixUrl(href))
+        }
+    }
+
+    // Load details
+    override suspend fun load(url: String): LoadResponse {
+        val document = app.get(url).document
+        
+        val title = document.selectFirst("h1, h2.title")?.text() ?: "Unknown"
+        val poster = document.selectFirst("img.poster, img.thumbnail, img")?.attr("src")
+        val description = document.selectFirst("div.description, div.synopsis, p")?.text()
+        
+        // Cari episode (simplified)
+        val episodes = document.select("a[href*=/watch/], a[href*=/episode/]").mapNotNull { link ->
+            val epHref = link.attr("href")
+            val epText = link.text()
+            
+            // Extract episode number
+            val epNum = Regex("Ep\\s*(\\d+)").find(epText)?.groupValues?.get(1)?.toIntOrNull()
+                ?: Regex("Episode\\s*(\\d+)").find(epText)?.groupValues?.get(1)?.toIntOrNull()
+                ?: 0
+            
+            Episode(fixUrl(epHref), "Episode $epNum", episode = epNum)
+        }.sortedBy { it.episode }
+        
+        return newAnimeLoadResponse(title, url, TvType.Anime) {
+            this.posterUrl = fixUrlNull(poster)
+            this.plot = description
+            addEpisodes(DubStatus.Subbed, episodes)
+        }
+    }
+
+    // Load video links (sederhana dulu)
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -134,139 +100,54 @@ class KazefuriPlugin : MainAPI() {
     ): Boolean {
         val document = app.get(data).document
         
-        // CATATAN: Anda perlu menyesuaikan selector berdasarkan struktur HTML sebenarnya
-        // Berikut adalah kemungkinan pola yang perlu diverifikasi:
-        
-        // 1. Extract episode ID dari URL
-        val episodeId = data.substringAfterLast("/").substringBefore("?")
-        
-        // 2. Scrap dari iframe player (paling umum)
-        val iframeSrc = document.selectFirst("iframe[src]")?.attr("src")
-        if (!iframeSrc.isNullOrBlank()) {
-            val fullIframeUrl = if (iframeSrc.startsWith("http")) iframeSrc else "$mainUrl$iframeSrc"
-            if (scrapVideoFromIframe(fullIframeUrl, callback)) {
+        // Coba cari iframe langsung
+        val iframe = document.selectFirst("iframe")
+        if (iframe != null) {
+            val iframeSrc = iframe.attr("src")
+            if (iframeSrc.isNotBlank()) {
+                val fullUrl = if (iframeSrc.startsWith("http")) iframeSrc else "$mainUrl$iframeSrc"
+                
+                // Gunakan extractor sederhana
+                callback(
+                    ExtractorLink(
+                        name,
+                        "Direct",
+                        fullUrl,
+                        mainUrl,
+                        Qualities.Unknown.value,
+                        isM3u8 = fullUrl.contains(".m3u8")
+                    )
+                )
                 return true
             }
         }
         
-        // 3. Cari script dengan video data (biasanya di player JavaScript)
-        val scripts = document.select("script")
-        for (script in scripts) {
-            val scriptHtml = script.html()
+        // Cari link video di script
+        document.select("script").forEach { script ->
+            val scriptText = script.html()
+            val patterns = listOf(
+                Regex("""src:\s*["'](https?://[^"']+\.(?:m3u8|mp4)[^"']*)["']"""),
+                Regex("""file:\s*["'](https?://[^"']+\.(?:m3u8|mp4)[^"']*)["']"""),
+                Regex("""(https?://[^"'\s]+\.(?:m3u8|mp4)[^"'\s]*)""")
+            )
             
-            // Pola 1: videojs atau plyr setup
-            if (scriptHtml.contains("videojs") || scriptHtml.contains("plyr.setup")) {
-                val sourcesMatch = Regex("""sources\s*:\s*\[(.*?)\]""", RegexOption.DOT_MATCHES_ALL)
-                    .find(scriptHtml)
-                sourcesMatch?.groupValues?.get(1)?.let { sourcesStr ->
-                    val urlMatch = Regex(""""(https?://[^"]+\.(?:m3u8|mp4)[^"]*)"""").findAll(sourcesStr)
-                    urlMatch.forEach { match ->
-                        callback(ExtractorLink(
+            patterns.forEach { pattern ->
+                pattern.findAll(scriptText).forEach { match ->
+                    val videoUrl = match.groupValues[1]
+                    callback(
+                        ExtractorLink(
                             name,
-                            "VideoJS Source",
-                            match.groupValues[1],
+                            "Script Source",
+                            videoUrl,
                             data,
                             Qualities.Unknown.value,
-                            isM3u8 = match.groupValues[1].contains(".m3u8")
-                        ))
-                    }
+                            isM3u8 = videoUrl.contains(".m3u8")
+                        )
+                    )
                 }
-            }
-            
-            // Pola 2: Base64 encoded video data
-            if (scriptHtml.contains("base64") && scriptHtml.length > 1000) {
-                val b64Match = Regex("""["']([A-Za-z0-9+/=]{100,})["']""").find(scriptHtml)
-                b64Match?.groupValues?.get(1)?.let { b64String ->
-                    try {
-                        val decoded = String(Base64.getDecoder().decode(b64String))
-                        val videoUrls = Regex("""https?://[^\s"']+\.(?:m3u8|mp4)""").findAll(decoded)
-                        videoUrls.forEach { match ->
-                            callback(ExtractorLink(
-                                name,
-                                "Base64 Decoded",
-                                match.value,
-                                data,
-                                Qualities.Unknown.value
-                            ))
-                        }
-                    } catch (e: Exception) {
-                        // Ignore base64 decode errors
-                    }
-                }
-            }
-        }
-        
-        // 4. Coba API extraction sebagai fallback
-        extractFromEmbedApi(episodeId, callback)
-        
-        // 5. Cari data attributes di player div
-        document.select("div[data-player], div[data-src], video[data-src]").forEach { playerDiv ->
-            playerDiv.attr("data-src").takeIf { it.isNotBlank() }?.let { videoUrl ->
-                callback(ExtractorLink(
-                    name,
-                    "Data Attribute",
-                    if (videoUrl.startsWith("//")) "https:$videoUrl" else videoUrl,
-                    data,
-                    Qualities.Unknown.value
-                ))
-            }
-        }
-        
-        // 6. Coba dengan extractor eksternal jika ada
-        val extractors = listOf(
-            StreamTapeExtractor(),
-            StreamWishExtractor(),
-            Mp4UploadExtractor()
-        )
-        
-        for (extractor in extractors) {
-            try {
-                val links = extractor.getUrl(data, mainUrl, false)
-                if (links.isNotEmpty()) {
-                    links.forEach { callback(it) }
-                    return true
-                }
-            } catch (e: Exception) {
-                continue
             }
         }
         
         return false
-    }
-    
-    // ==================== PARSING UTILITIES ====================
-    private fun parseQuality(label: String): Int {
-        return when {
-            label.contains("1080") -> Qualities.P1080.value
-            label.contains("720") -> Qualities.P720.value
-            label.contains("480") -> Qualities.P480.value
-            label.contains("360") -> Qualities.P360.value
-            else -> Qualities.Unknown.value
-        }
-    }
-    
-    // ==================== SUBTITLE SUPPORT ====================
-    private suspend fun extractSubtitles(document: Element): List<SubtitleFile> {
-        val subtitles = mutableListOf<SubtitleFile>()
-        
-        // Cari subtitle track
-        document.select("track[kind=subtitles], track[src]").forEach { track ->
-            val src = track.attr("src")
-            if (src.isNotBlank() && (src.endsWith(".vtt") || src.endsWith(".srt"))) {
-                val lang = track.attr("srclang").ifBlank { 
-                    track.attr("label").ifBlank { "id" }
-                }
-                subtitles.add(SubtitleFile(lang, src))
-            }
-        }
-        
-        return subtitles
-    }
-    
-    companion object {
-        // Helper untuk debugging
-        fun debugLog(message: String) {
-            println("[Kazefuri] $message")
-        }
     }
 }
