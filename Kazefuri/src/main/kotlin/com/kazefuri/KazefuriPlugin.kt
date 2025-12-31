@@ -1,18 +1,23 @@
 package com.kazefuri
 
+import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.plugins.Plugin
+import com.lagradost.cloudstream3.extractors.Dailymotion
+import com.lagradost.cloudstream3.extractors.Geodailymotion
 
 @CloudstreamPlugin
-class KazefuriPlugin {
-    lateinit var pluginData: PluginData
-
-    fun registerMainAPI(pluginData: PluginData) {
-        this.pluginData = pluginData
-        pluginData.mainApiList.add(Kazefuri())
-    }
-
-    fun load(context: Context) {
-        registerMainAPI(pluginData)
+class KazefuriPlugin: BasePlugin() {
+    override fun load() {
+        registerMainAPI(Donghuastream())
+        registerMainAPI(SeaTV())
+        registerExtractorAPI(Vtbe())
+        registerExtractorAPI(waaw())
+        registerExtractorAPI(wishfast())
+        registerExtractorAPI(FileMoonSx())
+        registerExtractorAPI(Dailymotion())
+        registerExtractorAPI(Geodailymotion())
+        registerExtractorAPI(Ultrahd())
+        registerExtractorAPI(Rumble())
+        registerExtractorAPI(PlayStreamplay())
     }
 }
