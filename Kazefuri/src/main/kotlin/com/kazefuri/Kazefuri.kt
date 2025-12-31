@@ -3,6 +3,7 @@ package com.kazefuri
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Document
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 
 class Kazefuri : MainAPI() {
     override var mainUrl = "https://sv3.kazefuri.cloud"
@@ -137,7 +138,6 @@ class Kazefuri : MainAPI() {
             loadExtractor(fixUrl(src), data, subtitleCallback, callback)
         }
 
-        // Fix type mismatch: positional dengan quality sebagai Int
         document.select("video source[src]").forEach {
             val src = it.attr("src")
             val label = it.attr("label").takeIf { it.isNotEmpty() } ?: "720p"
