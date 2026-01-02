@@ -1,0 +1,10 @@
+{
+    "name": "Matane Repo",
+    "iconUrl": "https://raw.githubusercontent.com/permatane/Plus62/main/matane.png",
+    "description": "Coba Matane Repository",
+    "manifestVersion": 1,
+    "pluginLists": [
+      "https://raw.githubusercontent.com/permatane/Plus62/builds/plugins.json"
+    ]
+}
+
