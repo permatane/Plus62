@@ -7,7 +7,7 @@ import android.content.Context
 @CloudstreamPlugin
 class AnichinPlugin: Plugin() {
     override fun load(context: Context) {
-        // Baris ini memanggil class Kazefuri() dari file sebelah
+        // Baris ini memanggil class Anichin() dari file sebelah
         registerMainAPI(Anichin())
     }
 }
