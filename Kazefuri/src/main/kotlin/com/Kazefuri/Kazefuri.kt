@@ -1,58 +1,72 @@
-package com.kazefuri
+package com.Kazefuri
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
 class Kazefuri : MainAPI() {
     override var mainUrl = "https://sv3.kazefuri.cloud"
     override var name = "Kazefuri"
     override val hasMainPage = true
-    override var lang = "id" // Sesuaikan bahasa konten
-    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
+    override var lang = "id"
+    override val supportedTypes = setOf(TvType.Anime, TvType.Movie, TvType.TvSeries)
 
-    // 1. Scraping Halaman Utama
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get(mainUrl).document
-        val items = document.select("div.item").mapNotNull {
+        // Mengambil daftar anime/movie dari halaman depan
+        val items = document.select("article.obj-anime, div.bs").mapNotNull {
             it.toSearchResult()
         }
-        return newHomePageResponse(request.name, items)
+        return newHomePageResponse("Update Terbaru", items)
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        val title = this.selectFirst("h2")?.text() ?: return null
+        val title = this.selectFirst("h2, .tt")?.text() ?: return null
         val href = this.selectFirst("a")?.attr("href") ?: return null
-        val posterUrl = this.selectFirst("img")?.attr("src")
+        val poster = this.selectFirst("img")?.attr("src")
 
-        return movieSearchResponse(title, href, TvType.Movie) {
-            this.posterUrl = posterUrl
+        // Memperbaiki Unresolved reference posterUrl dengan blok init
+        return newAnimeSearchResponse(title, href, TvType.Anime) {
+            this.posterUrl = poster
         }
     }
 
-    // 2. Scraping Pencarian
     override suspend fun search(query: String): List<SearchResponse> {
-        val url = "$mainUrl/?s=$query"
-        val document = app.get(url).document
-        return document.select("div.item").mapNotNull { it.toSearchResult() }
+        val document = app.get("$mainUrl/?s=$query").document
+        return document.select("article, div.bs").mapNotNull {
+            it.toSearchResult()
+        }
     }
 
-    // 3. Scraping Detail & Episode
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
-        val title = document.selectFirst("h1.entry-title")?.text() ?: ""
-        val poster = document.selectFirst("img.poster")?.attr("src")
-        val plot = document.selectFirst("div.description")?.text()
+        val title = document.selectFirst("h1.entry-title, .entry-title")?.text() ?: ""
+        val poster = document.selectFirst("img.wp-post-image, .poster img")?.attr("src")
+        val description = document.selectFirst(".entry-content p, .description")?.text()
 
-        // Logika untuk mendeteksi apakah ini Movie atau Series
-        return newMovieLoadResponse(title, url, TvType.Movie, url) {
-            this.posterUrl = poster
-            this.plot = plot
+        // Deteksi Episode (untuk Anime/Series)
+        val episodes = document.select(".eplister li").mapNotNull {
+            val epHref = it.selectFirst("a")?.attr("href") ?: return@mapNotNull null
+            val epName = it.selectFirst(".epl-num")?.text() ?: "Episode"
+            Episode(epHref, epName)
+        }
+
+        return if (episodes.isEmpty()) {
+            newMovieLoadResponse(title, url, TvType.Movie, url) {
+                this.posterUrl = poster
+                this.plot = description
+            }
+        } else {
+            newAnimeLoadResponse(title, url, TvType.Anime) {
+                this.posterUrl = poster
+                this.plot = description
+                addEpisodes(NavType.ITunes, episodes)
+            }
         }
     }
 
-    // 4. Scraping Link Video (Play Video)
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -60,22 +74,35 @@ class Kazefuri : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val document = app.get(data).document
-        
-        // Kazefuri biasanya menggunakan iframe atau player internal
-        // Contoh mencari link m3u8 atau mp4:
-        document.select("source").forEach { source ->
-            val videoUrl = source.attr("src")
-            callback.invoke(
-                ExtractorLink(
-                    this.name,
-                    "Kazefuri Player",
-                    videoUrl,
-                    referer = mainUrl,
-                    quality = Qualities.P720.value, // Anda bisa mendeteksi kualitas secara dinamis
-                    isM3u8 = videoUrl.contains(".m3u8")
-                )
-            )
+
+        // 1. Mencoba Player Iframe (External Extractor)
+        document.select("iframe").forEach { iframe ->
+            val src = iframe.attr("src")
+            if (src.isNotEmpty()) {
+                loadExtractor(src, data, subtitleCallback, callback)
+            }
         }
+
+        // 2. Mencoba mencari link direct dari script (Menghindari Deprecated Constructor)
+        val scriptData = document.select("script").joinToString { it.data() }
+        val regex = """["']file["']\s*:\s*["']([^"']+)["']""".toRegex()
+        
+        regex.findAll(scriptData).forEach { match ->
+            val videoUrl = match.groupValues[1]
+            if (videoUrl.contains("http")) {
+                callback.invoke(
+                    ExtractorLink(
+                        source = this.name,
+                        name = "Internal Player",
+                        url = videoUrl,
+                        referer = data,
+                        quality = Qualities.P720.value,
+                        isM3u8 = videoUrl.contains(".m3u8")
+                    )
+                )
+            }
+        }
+
         return true
     }
 }
