@@ -65,7 +65,7 @@ open class Anichin : MainAPI() {
         return newAnimeLoadResponse(title, url, TvType.Anime) {
             this.posterUrl = poster
             this.plot = description
-            addEpisodes(Navier.Both, episodes)
+            
         }
     }
 
