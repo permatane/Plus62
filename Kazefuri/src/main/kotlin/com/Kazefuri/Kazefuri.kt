@@ -2,6 +2,12 @@ package com.Kazefuri
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
+import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.httpsify
+import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
 class Kazefuri : MainAPI() {
@@ -68,41 +74,25 @@ class Kazefuri : MainAPI() {
     }
 
     override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
+            data: String,
+            isCasting: Boolean,
+            subtitleCallback: (SubtitleFile) -> Unit,
+            callback: (ExtractorLink) -> Unit
     ): Boolean {
+
         val document = app.get(data).document
-
-        // 1. Ekstraksi Iframe Otomatis (Fembed, Gdrive, dll)
-        document.select("iframe").forEach { iframe ->
-            val src = iframe.attr("src")
-            if (src.isNotEmpty()) {
-                loadExtractor(src, data, subtitleCallback, callback)
-            }
-        }
-
-        // 2. Ekstraksi Link Direct (Fixing Deprecated dengan newExtractorLink)
-        val scriptData = document.select("script").joinToString { it.data() }
-        // Regex untuk mencari file video di dalam script
-        val regex = """["']file["']\s*:\s*["']([^"']+)["']""".toRegex()
-        
-        regex.findAll(scriptData).forEach { match ->
-            val videoUrl = match.groupValues[1]
-            if (videoUrl.contains("http")) {
-                callback.invoke(
-                    newExtractorLink(
-                        source = this.name,
-                        name = "Internal Player",
-                        url = videoUrl,
-                        referer = data,
-                        quality = Qualities.P720.value,
-                        isM3u8 = videoUrl.contains(".m3u8")
-                    )
-                )
-            }
-        }
+        document.select("div.mobius > select.mirror > option")
+                .mapNotNull {
+                    fixUrl(Jsoup.parse(base64Decode(it.attr("value"))).select("iframe").attr("src"))
+                }
+                .amap {
+                    if (it.startsWith(mainUrl)) {
+                        app.get(it, referer = "$mainUrl/").document.select("iframe").attr("src")
+                    } else {
+                        it
+                    }
+                }
+                .amap { loadExtractor(httpsify(it), data, subtitleCallback, callback) }
 
         return true
     }
