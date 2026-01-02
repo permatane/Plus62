@@ -14,11 +14,10 @@ class Kazefuri : MainAPI() {
     override val supportedTypes       = setOf(TvType.Movie,TvType.Anime)
 
     override val mainPage = mainPageOf(
-        "anime/?status=ongoing&order=update" to "Recently Updated",
-        "anime/?status=ongoing&order&order=popular" to "Popular",
+        "anime/?status=ongoing&order=update" to "Update Terbaru",
+        "anime/?status=ongoing&order&order=popular" to "Paling Populer",
         "anime/?" to "Donghua",
         "anime/?status=&type=movie&page=" to "Movies",
-        "anime/?sub=raw" to "Anime (RAW)",
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
