@@ -136,7 +136,7 @@ class MovieBoxProvider : MainAPI() {
         "997144265920760504" to "Trending Hollywood",
         "6528093688173053896" to "Trending Indonesia",
         "8617025562613270856" to "Trending Anime",
-        "7736026911486755336"  to "Western Series",
+        "7736026911486755336" to "Western Series",
         "5283462032510044280" to "Indonesian Series",
         "4380734070238626200" to "Drama Korea",
         "8624142774394406504" to "Drama China",
@@ -146,7 +146,6 @@ class MovieBoxProvider : MainAPI() {
         "7132534597631837112" to "Film Animasi",
         "567783349092340776" to "Hot Short TV",
         "6554468392458667512" to "Ranking Terbaik",
-
         "1|1" to "All Movies",
         "1|2;sort=Latest" to "All Series",
         "1|1006" to "All Anime",
