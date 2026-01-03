@@ -133,9 +133,9 @@ class MovieBox : MainAPI() {
     }
 
     override val mainPage = mainPageOf(
+        "872031290915189720" to "Tren Saat ini"
         "997144265920760504" to "Trending Hollywood",
         "6528093688173053896" to "Trending Indonesia",
-        "8617025562613270856" to "Trending Anime",
         "7736026911486755336"  to "Western Series",
         "5283462032510044280" to "Indonesian Series",
         "4380734070238626200" to "Drama Korea",
@@ -144,8 +144,7 @@ class MovieBox : MainAPI() {
         "5404290953194750296" to "Anime",
         "5848753831881965888" to "Horor Indonesia",
         "7132534597631837112" to "Film Animasi",
-        "567783349092340776" to "Hot Short TV",
-        "6554468392458667512" to "Ranking Terbaik",
+        "8049887023940913872" to "All The Time Box Office",
         "1|1" to "All Movies",
         "1|2;sort=Latest" to "All Series",
         "1|1006" to "All Anime",
