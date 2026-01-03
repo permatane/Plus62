@@ -9,8 +9,8 @@ class Javsek : MainAPI() {
     private val DEV = "DevDebug"
     private val globaltvType = TvType.NSFW
 
-    override var name = "Jav Sex"
-    override var mainUrl = "https://javsek.net"
+    override var name = "Jav Pod Jav"
+    override var mainUrl = "https://podjav.tv/"
     override val supportedTypes = setOf(TvType.NSFW)
     override val hasDownloadSupport = true
     override val hasMainPage = true
