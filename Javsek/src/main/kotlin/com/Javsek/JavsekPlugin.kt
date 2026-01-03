@@ -9,7 +9,7 @@ import com.lagradost.cloudstream3.plugins.BasePlugin
 @CloudstreamPlugin
 class JavsekPlugin: BasePlugin() {
     override fun load() {
-        registerMainAPI(JavGuru())
+        registerMainAPI(Javsek())
         registerExtractorAPI(StreamTape())
         registerExtractorAPI(DoodStream())
         registerExtractorAPI(DoodDoply())
