@@ -11,7 +11,7 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
 class Javsek : MainAPI() {
-    override var mainUrl = "https://javsek.net"
+    override var mainUrl = "https://podjav.tv/"
     override var name = "Jav Sek"
     override val hasMainPage = true
     override var lang = "id"
@@ -19,12 +19,8 @@ class Javsek : MainAPI() {
     override val hasDownloadSupport = true
 
     override val mainPage = mainPageOf(
-        "category/indo-sub" to "Indonesia Sub",
-        "category/jav-reducing-mosaic-decensored-streaming-and-download" to "JAV Reducing Mosaic",
-        "category/english-sub" to "English Sub",
-        "category/amateur" to "Amateur",
-        "category/jav" to "JAV",
-        "category/chinese-porn-streaming" to "Chinese",
+        "/genre/jav-sub-indo" to "Indonesia Sub",
+        "/genre/orgasm" to "Orgasme",
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
