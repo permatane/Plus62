@@ -12,7 +12,7 @@ class Donghuaword  : Animekhor() {
     override var mainUrl              = "https://donghuaworld.com"
     override var name                 = "Donghuaword"
     override val hasMainPage          = true
-    override var lang                 = "zh"
+    override var lang                 = "id"
     override val hasDownloadSupport   = true
     override val supportedTypes       = setOf(TvType.Movie, TvType.Anime)
 
