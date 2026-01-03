@@ -1,4 +1,4 @@
-package com.javsek
+package com.Javsek
 
 import android.annotation.SuppressLint
 import android.util.Log
