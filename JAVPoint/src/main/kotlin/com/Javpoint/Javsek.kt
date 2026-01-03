@@ -14,9 +14,6 @@ class Javsek : MainAPI() {
     override val vpnStatus = VPNStatus.MightBeNeeded
 
     override val mainPage = mainPageOf(
-        "?filter=latest" to "Latest",
-        "?filter=popular" to "Popular",
-        "?filter=most-viewed" to "Most Viewed",
         "category/indo-sub" to "Indonesia Sub",
         "category/jav-reducing-mosaic-decensored-streaming-and-download" to "JAV Reducing Mosaic",
         "category/english-sub" to "English Sub",
@@ -98,7 +95,7 @@ class Javsek : MainAPI() {
                 val recomtitle = it.selectFirst("div.video > a")?.attr("title")?.trim().toString()
                 val recomhref = it.selectFirst("div.video > a")?.attr("href").toString()
                 val recomposterUrl = it.select("div.video > a > div > img").attr("src")
-                val recomposter = "https://javdoe.sh$recomposterUrl"
+                val recomposter = "https://javdsek.net$recomposterUrl"
                 newAnimeSearchResponse(recomtitle, recomhref, TvType.NSFW) {
                     this.posterUrl = recomposter
                 }
