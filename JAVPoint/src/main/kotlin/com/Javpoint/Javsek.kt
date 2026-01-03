@@ -11,8 +11,8 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
 class Javsek : MainAPI() {
-    override var mainUrl = "https://podjav.tv/"
-    override var name = "Pod Jav"
+    override var mainUrl = "https://javsek.net"
+    override var name = "JavSek"
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes = setOf(TvType.NSFW)
