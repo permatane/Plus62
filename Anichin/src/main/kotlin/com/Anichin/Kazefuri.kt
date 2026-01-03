@@ -1,4 +1,4 @@
-package com.Anichin
+package com.anichin
 
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
