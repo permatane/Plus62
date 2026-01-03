@@ -6,7 +6,6 @@ import com.lagradost.cloudstream3.extractors.Dailymotion
 import com.lagradost.cloudstream3.extractors.EmturbovidExtractor
 import com.lagradost.cloudstream3.extractors.Mp4Upload
 import com.lagradost.cloudstream3.extractors.Okrulink
-import com.lagradost.cloudstream3.extractors.Rumble
 // import android.content.Context
 
 @CloudstreamPlugin
