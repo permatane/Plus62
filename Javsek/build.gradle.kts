@@ -24,5 +24,5 @@ cloudstream {
 
     iconUrl = "https://www.google.com/s2/favicons?domain=javsek.net&sz=%size%"
 
-    language = "en"
+    language = "id"
 }
