@@ -24,9 +24,8 @@ class Javsek : MainAPI() {
     )
 
     override val mainPage = mainPageOf(
-        "$mainUrl/page/" to "Latest Updates",
-        "$mainUrl/category/uncensored/page/" to "Uncensored",
-        "$mainUrl/category/censored/page/" to "Censored",
+        "/movies" to "Latest Updates",
+        "/genre/jav-sub-indo" to "Jav Sub Indonesia",
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
