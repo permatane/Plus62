@@ -2,7 +2,7 @@ package com.Idlix
 
 import com.Idlix.Idlix.ResponseSource
 import com.Idlix.Idlix.Tracks
-import com.lagradost.cloudstream3.SubtitleFile
+import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorApi
@@ -19,7 +19,7 @@ class Jeniusplay : ExtractorApi() {
     override suspend fun getUrl(
         url: String,
         referer: String?,
-        subtitleCallback: (SubtitleFile) -> Unit,
+        subtitleCallback: (newSubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
         val document = app.get(url, referer = referer).document
