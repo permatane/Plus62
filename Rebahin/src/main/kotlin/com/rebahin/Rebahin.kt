@@ -236,7 +236,7 @@ open class Rebahin : MainAPI() {
                                     ?.getOrNull(1)
             tryParseJson<List<Tracks>>("[$subData]")?.map {
                 subCallback.invoke(
-                        SubtitleFile(
+                        newSubtitleFile(
                                 getLanguage(it.label ?: return@map null),
                                 if (it.file?.contains(".srt") == true) it.file else return@map null
                         )
