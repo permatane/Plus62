@@ -32,7 +32,7 @@ private val mainHeaders = mapOf(
 //       "$mainUrl/category/censored/page/" to "Censored",
     )
     
-    ooverride suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = if (page == 1) {
             app.get("${request.data}/", headers = mainHeaders).document
         } else {
@@ -186,3 +186,4 @@ private val mainHeaders = mapOf(
         return true
     }
 }
+
