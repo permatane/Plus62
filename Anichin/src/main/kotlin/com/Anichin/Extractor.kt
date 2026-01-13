@@ -73,6 +73,11 @@ class Swhoi : StreamWishExtractor() {
     override val requiresReferer = true
 }
 
+class wishfast : StreamWishExtractor() {
+    override var mainUrl = "https://wishfast.top"
+    override var name = "StreamWish"
+}
+    
 class VidHidePro5: VidHidePro() {
     override val mainUrl = "https://vidhidevip.com"
     override val requiresReferer = true
