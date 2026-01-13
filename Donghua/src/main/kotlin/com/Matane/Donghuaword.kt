@@ -16,6 +16,27 @@ class Donghuaword  : Animekhor() {
     override val hasDownloadSupport   = true
     override val supportedTypes       = setOf(TvType.Movie, TvType.Anime)
 
+        
+    override suspend fun search(query: String): List<SearchResponse> {
+        val searchResponse = mutableListOf<SearchResponse>()
+
+        for (i in 1..3) {
+            val document = app.get("${mainUrl}/page/$i/?s=$query").documentLarge
+
+            val results = document.select("div.listupd > article").mapNotNull { it.toSearchquery() }
+
+            if (!searchResponse.containsAll(results)) {
+                searchResponse.addAll(results)
+            } else {
+                break
+            }
+
+            if (results.isEmpty()) break
+        }
+
+        return searchResponse
+    }
+    
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).documentLarge
         val title= document.selectFirst("h1.entry-title")?.text()?.trim().toString()
