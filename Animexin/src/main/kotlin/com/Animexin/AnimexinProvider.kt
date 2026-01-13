@@ -17,6 +17,6 @@ class AnimexinProvider: BasePlugin() {
         registerExtractorAPI(FileMoonSx())
         registerExtractorAPI(Dailymotion())
         registerExtractorAPI(Okrulink())
-        registerExtractorAPI(DoodExtractor())
+        registerExtractorAPI(DoodLaExtractor())
     }
 }
