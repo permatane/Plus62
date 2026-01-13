@@ -14,6 +14,11 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.ErrorLoadingException
 import org.jsoup.Jsoup
 
+class Vidtren: XStreamCdn() {
+    override var name = "Anichin Stream"
+    override val mainUrl: String = "https://anichin.stream"
+}
+
 class embedwish : StreamWishExtractor() {
     override var mainUrl = "https://embedwish.com"
 }
