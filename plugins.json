@@ -1,0 +1,415 @@
+[
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://v0.animasu.app&size=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 26486,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "OVA",
+            "Anime"
+        ],
+        "version": 12,
+        "internalName": "Animasu",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Animasu.cs3",
+        "name": "Animasu"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://animekhor.org/&sz=%size%",
+        "jarFileSize": 22,
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "status": 0,
+        "language": "id",
+        "authors": [
+            "Phisher98"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "Anime"
+        ],
+        "version": 9,
+        "internalName": "Animekhor",
+        "jarUrl": "https://raw.githubusercontent.com/permatane/Plus62/builds/Animekhor.jar",
+        "description": "Anime and Movies",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Animekhor.cs3",
+        "name": "Animekhor"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://154.26.137.28&size=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 20262,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "Anime",
+            "OVA"
+        ],
+        "version": 12,
+        "internalName": "AnimeSailProvider",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/AnimeSailProvider.cs3",
+        "name": "AnimeSailProvider"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://anoboy.be&size=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 18310,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Duro92"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "OVA",
+            "Anime"
+        ],
+        "version": 2,
+        "internalName": "Anoboy",
+        "description": "Anoboy",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Anoboy.cs3",
+        "name": "Anoboy"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://anichin.cafe&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 36436,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Matane"
+        ],
+        "tvTypes": [
+            "TvSeries",
+            "Anime"
+        ],
+        "version": 3,
+        "internalName": "Donghua",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Donghua.cs3",
+        "name": "Donghua"
+    },
+    {
+        "iconUrl": "https://www.dubbindo.site/themes/dubbindo/img/icon.png",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 13114,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Matane, ByAyzen"
+        ],
+        "tvTypes": [
+            "AsianDrama"
+        ],
+        "version": 2,
+        "internalName": "Dubbindo",
+        "description": "Serial TV Bahasa Indonesia",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Dubbindo.cs3",
+        "name": "Dubbindo"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://justilien.com&size=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 32451,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Duro92"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 14,
+        "internalName": "Dutamovie",
+        "description": "DutaMovie",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Dutamovie.cs3",
+        "name": "Dutamovie"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://filmapik.singles&size=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 13643,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Duro92",
+            "CodeSanzz"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 1,
+        "internalName": "FilmApik",
+        "description": "Filmapik",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/FilmApik.cs3",
+        "name": "FilmApik"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://fufafilm.com&size=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 27683,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Duro92"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 2,
+        "internalName": "Fufafilm",
+        "description": "Fufafilm",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Fufafilm.cs3",
+        "name": "Fufafilm"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://klikxxi.fit&size=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 22033,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Duro92"
+        ],
+        "tvTypes": [
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 9,
+        "internalName": "Klikxxi",
+        "description": "Klikxxi",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Klikxxi.cs3",
+        "name": "Klikxxi"
+    },
+    {
+        "iconUrl": "https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://tv7.lk21official.cc&size=256",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 21152,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Matane, kraptor, Phisher98, Hexated"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 3,
+        "internalName": "LayarKaca",
+        "description": "Nonton dan download film & series terbaru di LK21. Streaming sub Indo gratis, kualitas HD. Tersedia drama Korea, anime, film barat, dan Asia lengkap!",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/LayarKaca.cs3",
+        "name": "LayarKaca"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://moviebox.ph&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 40900,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Matane,NivinCNC,Phisher98"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 5,
+        "internalName": "Moviebox",
+        "description": "Multi Language Movies and Series Provider",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Moviebox.cs3",
+        "name": "Moviebox"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://ngefilm21.pw&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 22153,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Matane"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 8,
+        "internalName": "Ngefilm",
+        "description": "Ngefilm",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Ngefilm.cs3",
+        "name": "Ngefilm"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://nomat.site&size=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 18925,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Duro92"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 4,
+        "internalName": "Nomat",
+        "description": "Nomat",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Nomat.cs3",
+        "name": "Nomat"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=nontonanimeid.org&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 19884,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated, Matane"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "Anime",
+            "OVA"
+        ],
+        "version": 23,
+        "internalName": "Nontonanime",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Nontonanime.cs3",
+        "name": "Nontonanime"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://otakudesu.cloud&size=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 25953,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "Anime",
+            "OVA"
+        ],
+        "version": 3,
+        "internalName": "OtakudesuProvider",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/OtakudesuProvider.cs3",
+        "name": "OtakudesuProvider"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://v1.pusatfilm21info.net&size=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 20250,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated",
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 10,
+        "internalName": "Pusatfilm",
+        "description": "Pusatfilm is a plugin that provides streaming links for movies and TV series.",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Pusatfilm.cs3",
+        "name": "Pusatfilm"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=rebahinxxi1.cfd&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 26126,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Matane, Hexated, TeKuma25"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "Anime",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 12,
+        "internalName": "Rebahin",
+        "description": "Includes: Cgvindo, Kitanonton",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Rebahin.cs3",
+        "name": "Rebahin"
+    },
+    {
+        "iconUrl": "https://raw.githubusercontent.com/permatane/Plus62/main/SoraStream/Icon.png",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 141109,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated",
+            "Sora"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Anime",
+            "Movie"
+        ],
+        "version": 235,
+        "internalName": "SoraStream",
+        "description": "#1 best extention based on MultiAPI",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/SoraStream.cs3",
+        "name": "SoraStream"
+    },
+    {
+        "iconUrl": "https://zoronime.com/wp-content/themes/zoronime/favicon.png?v=0.06",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 20401,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "OVA",
+            "Anime"
+        ],
+        "version": 3,
+        "internalName": "Zoronime",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Zoronime.cs3",
+        "name": "Zoronime"
+    }
+]
