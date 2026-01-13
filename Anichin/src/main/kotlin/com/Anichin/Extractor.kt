@@ -8,12 +8,51 @@ import com.lagradost.cloudstream3.extractors.VidHidePro
 import com.lagradost.cloudstream3.extractors.VidStack
 import com.lagradost.cloudstream3.extractors.VidhideExtractor
 import com.lagradost.cloudstream3.extractors.Gdriveplayer
+import com.lagradost.cloudstream3.extractors.Filesim
+import com.lagradost.cloudstream3.extractors.StreamSB
 import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.utils.*
 import android.util.Log
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.ErrorLoadingException
 import org.jsoup.Jsoup
+
+open class Vtbe : ExtractorApi() {
+    override var name = "Vtbe"
+    override var mainUrl = "https://vtbe.to"
+    override val requiresReferer = true
+
+    override suspend fun getUrl(url: String, referer: String?): List<ExtractorLink>? {
+        val response = app.get(url,referer=mainUrl).documentLarge
+        val extractedpack =response.selectFirst("script:containsData(function(p,a,c,k,e,d))")?.data().toString()
+        JsUnpacker(extractedpack).unpack()?.let { unPacked ->
+            Regex("sources:\\[\\{file:\"(.*?)\"").find(unPacked)?.groupValues?.get(1)?.let { link ->
+                return listOf(
+                    newExtractorLink(
+                        this.name,
+                        this.name,
+                        url = link,
+                        ExtractorLinkType.M3U8
+                    ) {
+                        this.referer = referer ?: ""
+                        this.quality = Qualities.Unknown.value
+                    }
+
+                )
+            }
+        }
+        return null
+    }
+}
+
+class waaw : StreamSB() {
+    override var mainUrl = "https://waaw.to"
+}
+
+class FileMoonSx : Filesim() {
+    override val mainUrl = "https://filemoon.sx"
+    override val name = "FileMoonSx"
+}
 
 class Vidtren: Gdriveplayer() {
     override var name = "Anichin Stream"
@@ -154,5 +193,12 @@ class Rumble : ExtractorApi() {
                 break
             }
         }
+    }
+}
+fun Http(url: String): String {
+    return if (url.startsWith("//")) {
+        "https:$url"
+    } else {
+        url
     }
 }
