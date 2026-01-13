@@ -10,6 +10,7 @@ class AnichinPlugin: BasePlugin() {
     override fun load() {
         registerMainAPI(Anichin())
         registerMainAPI(Kazefuri())
+         registerMainAPI(Animexin())
         registerExtractorAPI(embedwish())
         registerExtractorAPI(Filelions())
         registerExtractorAPI(VidHidePro5())
@@ -29,6 +30,10 @@ class AnichinPlugin: BasePlugin() {
         registerExtractorAPI(Vidguardto())
         registerExtractorAPI(Vidguardto1())
         registerExtractorAPI(Vidguardto2())
-        registerExtractorAPI(Vidguardto3())        
+        registerExtractorAPI(Vidguardto3()) 
+        registerExtractorAPI(Vtbe())
+        registerExtractorAPI(waaw())
+        registerExtractorAPI(wishfast())
+        registerExtractorAPI(FileMoonSx())
     }
 }
