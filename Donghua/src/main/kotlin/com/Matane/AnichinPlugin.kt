@@ -10,7 +10,9 @@ class AnichinPlugin: BasePlugin() {
     override fun load() {
         registerMainAPI(Anichin())
         registerMainAPI(Kazefuri())
-         registerMainAPI(Animexin())
+        registerMainAPI(Animexin())
+        registerMainAPI(Animekhor())
+        registerMainAPI(Donghuaword())
         registerExtractorAPI(embedwish())
         registerExtractorAPI(Filelions())
         registerExtractorAPI(VidHidePro5())
