@@ -18,7 +18,7 @@ class AnimexinProvider: BasePlugin() {
         registerExtractorAPI(Dailymotion())
         registerExtractorAPI(Okrulink())
         registerExtractorAPI(Gdriveplayer())        
-        registerExtractorAPI(DoodLaExtractor())
+        registerExtractorAPI(DoodExtractor())
 
 
     }
