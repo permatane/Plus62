@@ -2,8 +2,6 @@ package com.Animexin
 
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.extractors.Dailymotion
-import com.lagradost.cloudstream3.extractors.Okrulink
 import com.lagradost.cloudstream3.extractors.*
 
 
@@ -18,7 +16,7 @@ class AnimexinProvider: BasePlugin() {
         registerExtractorAPI(Dailymotion())
         registerExtractorAPI(Okrulink())
         registerExtractorAPI(Gdriveplayer())        
-        registerExtractorAPI(DoodExtractor())
+        registerExtractorAPI(DoodLaExtractor())
 
 
     }
