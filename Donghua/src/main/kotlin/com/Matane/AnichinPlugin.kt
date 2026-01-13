@@ -25,6 +25,7 @@ class AnichinPlugin: BasePlugin() {
         registerExtractorAPI(Mp4Upload())
         registerExtractorAPI(Okrulink())
         registerExtractorAPI(StreamRuby())
+        registerExtractorAPI(StreamTape())
         registerExtractorAPI(DoodLaExtractor())
         registerExtractorAPI(Gdriveplayer())  
         registerExtractorAPI(XStreamCdn())
