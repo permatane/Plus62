@@ -23,7 +23,21 @@ open class Animekhor : Anichin() {
         "anime/?status=&type=&order=popular" to "Popular",
         "anime/?status=completed&order=update" to "Completed",
     )
+    
+   override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val document = app.get("$mainUrl/${request.data}&page=$page").documentLarge
+        val home     = document.select("div.listupd > article").mapNotNull { it.toSearchResult() }
 
+        return newHomePageResponse(
+            list    = HomePageList(
+                name               = request.name,
+                list               = home,
+                isHorizontalImages = false
+            ),
+            hasNext = true
+        )
+    }
+   
         private fun Element.toSearchResult(): SearchResponse {
         val title     = this.select("div.bsx > a").attr("title")
         val href      = fixUrl(this.select("div.bsx > a").attr("href"))
