@@ -13,7 +13,7 @@ class AnichinPlugin: BasePlugin() {
         registerMainAPI(Animexin())
         registerMainAPI(Animekhor())
         registerMainAPI(Donghuaword())
-        registerMainAPI(Auratail())
+//        registerMainAPI(Auratail())
         registerExtractorAPI(embedwish())
         registerExtractorAPI(Filelions())
         registerExtractorAPI(VidHidePro5())
