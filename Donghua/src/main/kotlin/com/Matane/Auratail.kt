@@ -5,13 +5,17 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.Jsoup
 
-class Auratail : Animekhor() {
+class Auratail : Anichin() {
     override var mainUrl              = "https://auratail.vip"
     override var name                 = "Auratail"
     override val hasMainPage          = true
     override var lang                 = "id"
     override val hasDownloadSupport   = true
     override val supportedTypes       = setOf(TvType.Movie,TvType.Anime)
+
+        private val BROWSER_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
     override val mainPage = mainPageOf(
         "" to "Update Terbaru"
