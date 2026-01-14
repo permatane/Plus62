@@ -246,7 +246,7 @@ override suspend fun loadLinks(
                 subCallback(
                         newSubtitleFile(
                                 getLanguage(track.label ?: "Default"),
-                                fixUrl(file, realUrl)
+                                fixUrl(file)
                         )
                 )
             }
