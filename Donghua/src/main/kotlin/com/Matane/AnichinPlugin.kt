@@ -14,6 +14,7 @@ class AnichinPlugin: BasePlugin() {
         registerMainAPI(Animekhor())
         registerMainAPI(Donghuaword())
         registerMainAPI(Auratail())
+        registerMainAPI(Animechina())
         registerExtractorAPI(embedwish())
         registerExtractorAPI(Filelions())
         registerExtractorAPI(VidHidePro5())
