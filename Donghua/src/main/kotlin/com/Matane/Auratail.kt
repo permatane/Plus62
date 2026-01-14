@@ -80,28 +80,39 @@ override val mainPage = mainPageOf(
 
  }
 
-override fun load(url: String): LoadResponse {
-        val document = app.get(url).document
-
-        val title = titleElement.attr("title").ifBlank { 
-        titleElement.selectFirst("h2, h3, .title")?.text()?.trim() ?: titleElement.text().trim()
-    }.trim()
-    
-    if (title.isEmpty()) return null
-
-        val posterUrl = when {
-        posterElement == null -> null
-        else -> {
-            val src = posterElement.attr("src").ifBlank { 
-                posterElement.attr("data-src").ifBlank { 
-                    posterElement.attr("data-lazy-src") 
-                } 
+    override suspend fun load(url: String): LoadResponse {
+        val document = app.get(url).documentLarge
+        val title= document.selectFirst("h1.entry-title")?.text()?.trim().toString()
+        val href=document.selectFirst(".eplister li > a")?.attr("href") ?:""
+        var poster = document.select("meta[property=og:image]").attr("content")
+        val description = document.selectFirst("div.entry-content")?.text()?.trim()
+        val type=document.selectFirst(".spe")?.text().toString()
+        val tvtag=if (type.contains("Movie")) TvType.Movie else TvType.TvSeries
+        return if (tvtag == TvType.TvSeries) {
+            val Eppage= document.selectFirst(".eplister li > a")?.attr("href") ?:""
+            val doc= app.get(Eppage).documentLarge
+            val epposter = doc.select("meta[property=og:image]").attr("content")
+            val episodes=doc.select("div.episodelist > ul > li").map { info->
+                        val href1 = info.select("a").attr("href")
+                        val episode = info.select("a span").text().substringAfter("-").substringBeforeLast("-")
+                        newEpisode(href1)
+                        {
+                            this.name=episode
+                            this.posterUrl=epposter
+                        }
             }
-            if (src.isNotBlank()) fixUrlNull(src) else null
+            newTvSeriesLoadResponse(title, url, TvType.Anime, episodes.reversed()) {
+                this.posterUrl = poster
+                this.plot = description
+            }
+        } else {
+            if (poster.isEmpty())
+            {
+                poster=document.selectFirst("meta[property=og:image]")?.attr("content")?.trim().toString()
+            }
+            newMovieLoadResponse(title, url, TvType.Movie, href) {
+                this.posterUrl = poster
+                this.plot = description
+            }
         }
     }
-
-        return newAnimeSearchResponse(title, href, TvType.Anime) {
-        this.posterUrl = posterUrl
-        }
-}
