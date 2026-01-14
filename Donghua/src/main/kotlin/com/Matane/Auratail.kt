@@ -69,6 +69,50 @@ override val mainPage = mainPageOf(
         this.posterUrl = posterUrl
     }
 }
+}
+override suspend fun loadLinks(
+    data: String,
+    isCasting: Boolean,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+): Boolean {
 
+    try {
+        val res = app.get(data, headers = mapOf("User-Agent" to "Mozilla/5.0")).document
 
+        res.select("select option[value], .resolusi option, .mirror option").apmap { opt ->
+            var url = opt.attr("value").trim()
+
+            if (url.isBlank()) return@apmap
+
+            // Decode base64
+            if (!url.startsWith("http") && url.length > 100) {
+                try { url = String(base64Decode(url)) } catch (e: Throwable) { }
+            }
+
+            var link = httpsify(url)
+
+            if (link.contains("auratail") || link.contains(mainUrl)) {
+                try {
+                    val innerDoc = app.get(link, referer = data).document
+                    innerDoc.select("iframe").attr("src").takeIf { it.isNotBlank() }?.let {
+                        loadExtractor(httpsify(it), data, subtitleCallback, callback)
+                    }
+                } catch (_: Exception) {}
+            } else {
+                loadExtractor(link, data, subtitleCallback, callback)
+            }
+        }
+
+        // Fallback iframe langsung
+        res.select("iframe[src]").forEach {
+            val src = httpsify(it.attr("src"))
+            if (src.isNotBlank()) loadExtractor(src, data, subtitleCallback, callback)
+        }
+
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+
+    return true
 }
