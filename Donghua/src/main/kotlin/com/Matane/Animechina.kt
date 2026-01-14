@@ -19,7 +19,7 @@ class Animechina : Anichin() {
     )
    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("$mainUrl/page/$page").documentLarge
-        val home     = document.select("article.bs, .bsx, div.series__thumbnail")
+        val home     = document.select("article, .bsx, .bs, .tip, .anime-item, div.series__thumbnail")
             .mapNotNull { it.toSearchResult() }
 
         return newHomePageResponse(
