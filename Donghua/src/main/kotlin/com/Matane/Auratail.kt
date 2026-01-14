@@ -70,50 +70,31 @@ override val mainPage = mainPageOf(
     }
 }
     
-override suspend fun loadLinks(
-    data: String,
-    isCasting: Boolean,
-    subtitleCallback: (SubtitleFile) -> Unit,
-    callback: (ExtractorLink) -> Unit
-): Boolean {
+override suspend fun load(url: String): LoadResponse {
+        val doc = app.get(url).document
+        val title = doc.selectFirst("h1.entry-title, .post-title h1")?.text()?.trim() ?: "Unknown"
+        val poster = doc.selectFirst("div.thumb img, img.attachment-post-thumbnail")?.attr("src")
+            ?.let { fixUrlNull(it) }
 
-    try {
-        val res = app.get(data, headers = mapOf("User-Agent" to "Mozilla/5.0")).document
-
-        res.select("select option[value], .resolusi option, .mirror option").apmap { opt ->
-            var url = opt.attr("value").trim()
-
-            if (url.isBlank()) return@apmap
-
-            // Decode base64
-            if (!url.startsWith("http") && url.length > 100) {
-                try { url = String(base64Decode(url)) } catch (e: Throwable) { }
+        val isMovie = url.contains("/movie/") || title.contains("Movie", ignoreCase = true) || title.contains("Batch", ignoreCase = true)
+        val episodes = doc.select("div.eplister ul li, .episodelist li").mapNotNull {
+            val a = it.selectFirst("a") ?: return@mapNotNull null
+            val epNum = it.selectFirst(".epl-num")?.text()?.toIntOrNull()
+            newEpisode(fixUrl(a.attr("href"))) {
+                this.episode = epNum
+                this.name = "Episode $epNum"
             }
+        }.reversed()
 
-            var link = httpsify(url)
-
-            if (link.contains("auratail") || link.contains(mainUrl)) {
-                try {
-                    val innerDoc = app.get(link, referer = data).document
-                    innerDoc.select("iframe").attr("src").takeIf { it.isNotBlank() }?.let {
-                        loadExtractor(httpsify(it), data, subtitleCallback, callback)
-                    }
-                } catch (_: Exception) {}
-            } else {
-                loadExtractor(link, data, subtitleCallback, callback)
+        return if (isMovie || episodes.isEmpty()) {
+            newMovieLoadResponse(title, url, TvType.AnimeMovie, url) {
+                this.posterUrl = poster
+            }
+        } else {
+            newAnimeLoadResponse(title, url, TvType.Anime, episodes) {
+                this.posterUrl = poster
+                addEpisodes(DubStatus.Subbed, episodes)
             }
         }
-
-        // Fallback iframe langsung
-        res.select("iframe[src]").forEach {
-            val src = httpsify(it.attr("src"))
-            if (src.isNotBlank()) loadExtractor(src, data, subtitleCallback, callback)
-        }
-
-    } catch (e: Exception) {
-        e.printStackTrace()
     }
-
-    return true
-}
 }
