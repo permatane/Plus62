@@ -111,6 +111,8 @@ override suspend fun load(url: String): LoadResponse {
             dataUrl = url     
         ) {
             this.posterUrl = poster
+            this.plot = description
+            this.tags = document.select("a[rel=tag]").eachText()
             // Tambahkan jika ada: this.plot = synopsis, this.tags = genres, dll
         }
     } else {
@@ -120,6 +122,8 @@ override suspend fun load(url: String): LoadResponse {
             type = TvType.Anime
         ) {
             this.posterUrl = poster
+            this.plot = description
+            this.tags = document.select("a[rel=tag]").eachText()
             addEpisodes(DubStatus.Subbed, episodes)
         }
     }
