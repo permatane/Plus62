@@ -25,7 +25,7 @@ override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageR
     }
     val document = app.get(url).documentLarge  // documentLarge lebih aman untuk situs berat
 
-    val homeItems = document.select("div.series__card, article, .bsx, .bs, .tip, .anime-item, div.series__thumbnail")
+    val homeItems = document.select("div.series__card, article, .bsx, .bs, .tip, .anime-item")
         .mapNotNull { it.toSearchResult() }
 
     return newHomePageResponse(
@@ -75,7 +75,7 @@ override suspend fun load(url: String): LoadResponse {
         it.attr("data-src").ifBlank { it.attr("src") }.ifBlank { it.attr("content") }
     }?.trim()?.let { fixUrlNull(it) }
 
-    val synopsis = doc.selectFirst("div.entry-content p, .sinopsis, div[itemprop=description]")?.text()?.trim()
+    val synopsis = doc.selectFirst("div.entry-content, meta[property=og:description]")?.text()?.trim()
 
     val episodes = doc.select("div.eplister ul li, .episodelist li, #episode_related li, ul.episode-list li")
         .mapNotNull { el ->
