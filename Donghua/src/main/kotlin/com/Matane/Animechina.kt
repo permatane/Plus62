@@ -17,57 +17,51 @@ class Animechina : Anichin() {
         "" to "Update Terbaru",
         "ongoing/" to "Ongoing"
     )
-override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val path = if (request.data.isEmpty()) "/page/$page/" else request.data + "&page=$page"
-        val url = "$mainUrl$path".replace("//", "/")
-
-        val response = app.get(url, timeout = 50)
-        if (response.code != 200) {
-            // Jika 403 atau error koneksi, return empty agar tidak crash
-            return newHomePageResponse(emptyList(), hasNext = false)
-        }
-
-        val doc = response.document
-
-        // Selector utama dari snippet HTML kamu
-        var items = doc.select("div.series__card").mapNotNull { it.toSearchResult() }
-
-        // Fallback selector umum jika series__card tidak ada di semua page
-        if (items.isEmpty()) {
-            items = doc.select("article, .bsx, .bs, .tip, .anime-item, div.series__thumbnail").mapNotNull { it.toSearchResult() }
-        }
+   override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val document = app.get("$mainUrl/page/$page").documentLarge
+        val home     = document.select("article.bs, .bsx, div.series__thumbnail")
+            .mapNotNull { it.toSearchResult() }
 
         return newHomePageResponse(
-            list = HomePageList(
-                name = request.name,
-                list = items,
+            list    = HomePageList(
+                name               = request.name,
+                list               = home,
                 isHorizontalImages = false
             ),
-            hasNext = doc.select("a.next, .pagination a[href*='page=']").isNotEmpty()
+            hasNext = true
         )
     }
-
+    
     private fun Element.toSearchResult(): SearchResponse? {
-        val linkElem = selectFirst("a[href][title]") ?: return null
-        val title = linkElem.attr("title").trim().ifEmpty {
-            selectFirst("div.series__title h2")?.text()?.trim() ?: ""
-        }
-        if (title.isEmpty()) return null
+    val titleElement = selectFirst("a") ?: return null
+    
+    val title = titleElement.attr("title").ifBlank { 
+        titleElement.selectFirst("h2, h3, .title")?.text()?.trim() ?: titleElement.text().trim()
+    }.trim()
+    
+    if (title.isEmpty()) return null
 
-        val href = fixUrl(linkElem.attr("href"))
+    val href = fixUrl(titleElement.attr("href"))
 
-        // Prioritas data-src untuk lazyload (seperti di snippet kamu)
-        val imgElem = selectFirst("img.lazyload")
-        val poster = imgElem?.let {
-            it.attr("data-src").ifBlank {
-                it.attr("data-lazy-src").ifBlank { it.attr("src") }
+    // Perbaikan utama: ambil gambar dengan prioritas lazy loading
+    val posterElement = selectFirst("img")
+    val posterUrl = when {
+        posterElement == null -> null
+        else -> {
+            val src = posterElement.attr("src").ifBlank { 
+                posterElement.attr("data-src").ifBlank { 
+                    posterElement.attr("data-lazy-src") 
+                } 
             }
-        }?.trim()?.let { fixUrlNull(it) }
-
-        return newAnimeSearchResponse(title, href, TvType.Anime) {
-            this.posterUrl = poster
+            if (src.isNotBlank()) fixUrlNull(src) else null
         }
     }
+
+    return newAnimeSearchResponse(title, href, TvType.Anime) {
+        this.posterUrl = posterUrl
+    }
+}
+    
 
 
 
