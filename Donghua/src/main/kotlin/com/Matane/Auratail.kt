@@ -71,30 +71,50 @@ override val mainPage = mainPageOf(
 }
     
 override suspend fun load(url: String): LoadResponse {
-        val doc = app.get(url).document
-        val title = doc.selectFirst("h1.entry-title, .post-title h1")?.text()?.trim() ?: "Unknown"
-        val poster = doc.selectFirst("div.thumb img, img.attachment-post-thumbnail")?.attr("src")
-            ?.let { fixUrlNull(it) }
+    val doc = app.get(url).document
 
-        val isMovie = url.contains("/movie/") || title.contains("Movie", ignoreCase = true) || title.contains("Batch", ignoreCase = true)
-        val episodes = doc.select("div.eplister ul li, .episodelist li").mapNotNull {
-            val a = it.selectFirst("a") ?: return@mapNotNull null
-            val epNum = it.selectFirst(".epl-num")?.text()?.toIntOrNull()
-            newEpisode(fixUrl(a.attr("href"))) {
+    val title = doc.selectFirst("h1.entry-title, .post-title h1, h1")?.text()?.trim() ?: "Unknown Title"
+    val poster = doc.selectFirst("div.thumb img, img.poster, meta[property=og:image]")?.let {
+        fixUrlNull(it.attr("src").ifBlank { it.attr("data-src") })
+    }
+
+
+
+    val episodes = doc.select("div.eplister ul li, .episodelist ul li, #episode_related li")
+        .mapNotNull { el ->
+            val a = el.selectFirst("a") ?: return@mapNotNull null
+            val href = fixUrl(a.attr("href"))
+            val epNumStr = el.selectFirst(".epl-num, .episode-number")?.text()?.trim() ?: ""
+            val epNum = epNumStr.toIntOrNull() ?: Regex("""\d+""").find(epNumStr)?.value?.toIntOrNull()
+
+            newEpisode(href) {
+                this.name = "Episode ${epNum ?: "?"}"
                 this.episode = epNum
-                this.name = "Episode $epNum"
-            }
-        }.reversed()
 
-        return if (isMovie || episodes.isEmpty()) {
-            newMovieLoadResponse(title, url, TvType.AnimeMovie, url) {
-                this.posterUrl = poster
             }
-        } else {
-            newAnimeLoadResponse(title, url, TvType.Anime, episodes) {
-                this.posterUrl = poster
-                addEpisodes(DubStatus.Subbed, episodes)
-            }
+        }.reversed() 
+
+    val isMovie = url.contains("/movie/") || title.lowercase().contains("movie") || title.lowercase().contains("batch") || episodes.isEmpty()
+
+    return if (isMovie) {
+        newMovieLoadResponse(
+            title = title,
+            url = url,
+            type = TvType.AnimeMovie,
+            data = url 
+        ) {
+            this.posterUrl = poster
+            // tambahkan plot, tags, dll jika perlu
+        }
+    } else {
+        newAnimeLoadResponse(
+            title = title,
+            url = url,
+            type = TvType.Anime
+        ) {
+            this.posterUrl = poster
+            addEpisodes(DubStatus.Subbed, episodes)
         }
     }
+}
 }
