@@ -83,14 +83,23 @@ override val mainPage = mainPageOf(
 override fun load(url: String): LoadResponse {
         val document = app.get(url).document
 
-        val title =
-            document.selectFirst("h1")?.text()
-                ?: document.selectFirst("meta[property=og:title]")?.attr("content")
-                ?: "Auratail Video"
+        val title = titleElement.attr("title").ifBlank { 
+        titleElement.selectFirst("h2, h3, .title")?.text()?.trim() ?: titleElement.text().trim()
+    }.trim()
+    
+    if (title.isEmpty()) return null
 
-        val poster =
-            document.selectFirst("div.thumb img")?.attr("src")
-                ?: document.selectFirst("meta[property=og:image]")?.attr("content")
+        val posterUrl = when {
+        posterElement == null -> null
+        else -> {
+            val src = posterElement.attr("src").ifBlank { 
+                posterElement.attr("data-src").ifBlank { 
+                    posterElement.attr("data-lazy-src") 
+                } 
+            }
+            if (src.isNotBlank()) fixUrlNull(src) else null
+        }
+    }
 
         return newAnimeSearchResponse(title, href, TvType.Anime) {
         this.posterUrl = posterUrl
