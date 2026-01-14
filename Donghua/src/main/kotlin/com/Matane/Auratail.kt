@@ -105,8 +105,7 @@ override suspend fun load(url: String): LoadResponse {
                   name.lowercase().contains("movie") ||
                   name.lowercase().contains("batch") ||
                   episodes.isEmpty()
-    val description = doc.selectFirst("div.entry-content, meta[property=og:description]")?.text()?.trim()
-
+    
     return if (isMovie) {
         newMovieLoadResponse(
             name = name,     
@@ -115,7 +114,8 @@ override suspend fun load(url: String): LoadResponse {
             dataUrl = url     
         ) {
             this.posterUrl = poster
-            this.plot = description
+            this.plot = doc.selectFirst("div.entry-content, meta[property=og:description]")?.text()?.trim()
+            this.tags = doc.select("a[rel=tag]").eachText()
                 //this.tags = document.select("a[rel=tag]").eachText()
             // Tambahkan jika ada: this.plot = synopsis, this.tags = genres, dll
         }
@@ -126,7 +126,8 @@ override suspend fun load(url: String): LoadResponse {
             type = TvType.Anime
         ) {
             this.posterUrl = poster
-            this.plot = description
+            this.plot = doc.selectFirst("div.entry-content, meta[property=og:description]")?.text()?.trim()
+            this.tags = doc.select("a[rel=tag]").eachText()
             addEpisodes(DubStatus.Subbed, episodes)
         }
     }
