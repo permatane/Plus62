@@ -31,7 +31,36 @@ class Animechina : Anichin() {
             hasNext = true
         )
     }
+   private fun Element.toSearchResult(): SearchResponse? {
+    val titleElement = selectFirst("a") ?: return null
+    
+    val title = titleElement.attr("title").ifBlank { 
+        titleElement.selectFirst("h2, h3, .title")?.text()?.trim() ?: titleElement.text().trim()
+    }.trim()
+    
+    if (title.isEmpty()) return null
 
+    val href = fixUrl(titleElement.attr("href"))
+
+    // Perbaikan utama: ambil gambar dengan prioritas lazy loading
+    val posterElement = selectFirst("img")
+    val posterUrl = when {
+        posterElement == null -> null
+        else -> {
+            val src = posterElement.attr("src").ifBlank { 
+                posterElement.attr("data-src").ifBlank { 
+                    posterElement.attr("data-lazy-src") 
+                } 
+            }
+            if (src.isNotBlank()) fixUrlNull(src) else null
+        }
+    }
+
+    return newAnimeSearchResponse(title, href, TvType.Anime) {
+        this.posterUrl = posterUrl
+    }
+}
+ 
    override suspend fun loadLinks(
             data: String,
             isCasting: Boolean,
