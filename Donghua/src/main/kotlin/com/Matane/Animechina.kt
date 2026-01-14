@@ -13,16 +13,7 @@ class Animechina : Anichin() {
     override val hasDownloadSupport   = true
     override val supportedTypes       = setOf(TvType.Movie,TvType.Anime)
 
- private val headers = mapOf(
-        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language" to "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Referer" to "$mainUrl/",
-        "Sec-Fetch-Dest" to "document",
-        "Sec-Fetch-Mode" to "navigate",
-        "Sec-Fetch-Site" to "same-origin"
-    )
-    
+   
     override val mainPage = mainPageOf(
         "" to "Update Terbaru",
         "ongoing/" to "Ongoing"
