@@ -33,10 +33,10 @@ class Animechina : Anichin() {
     }
     
     private fun Element.toSearchResult(): SearchResponse? {
-    val titleElement = selectFirst("a") ?: return null
+    val titleElement = selectFirst("a[href][title]") ?: return null
     
     val title = titleElement.attr("title").ifBlank { 
-        titleElement.selectFirst("h2, h3, .title")?.text()?.trim() ?: titleElement.text().trim()
+        titleElement.selectFirst("h2, h3, div.series__title h2")?.text()?.trim() ?: titleElement.text().trim()
     }.trim()
     
     if (title.isEmpty()) return null
