@@ -16,9 +16,21 @@ class Animechina : Anichin() {
     override val mainPage = mainPageOf(
         "" to "Update Terbaru",
         "ongoing/" to "Ongoing"
-
     )
+ override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val document = app.get("$mainUrl/page/$page").documentLarge
+        val home     = document.select("article.bs, article.bsx, .listupd article")
+            .mapNotNull { it.toSearchResult() }
 
+        return newHomePageResponse(
+            list    = HomePageList(
+                name               = request.name,
+                list               = home,
+                isHorizontalImages = false
+            ),
+            hasNext = true
+        )
+    }
 
    override suspend fun loadLinks(
             data: String,
