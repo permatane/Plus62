@@ -176,69 +176,77 @@ open class Rebahin : MainAPI() {
         }
     }
 
-    override suspend fun loadLinks(
+override suspend fun loadLinks(
             data: String,
             isCasting: Boolean,
             subtitleCallback: (SubtitleFile) -> Unit,
             callback: (ExtractorLink) -> Unit
     ): Boolean {
+        val sources = mutableListOf<String>()
 
-        data.removeSurrounding("[", "]").split(",").map { it.trim() }.amap { link ->
+        if (data.startsWith("http")) {
+            sources.add(data.trim())
+        } else {
+            // Fallback pola lama jika data adalah list
+            data.removeSurrounding("[", "]")
+                .split(",")
+                .map { it.trim().removeSurrounding("\"") }
+                .filter { it.isNotBlank() && it.startsWith("http") }
+                .forEach { sources.add(it) }
+        }
+
+        sources.amap { src ->
             safeApiCall {
-                when {
-                    link.startsWith(mainServer) ->
-                            invokeLokalSource(link, subtitleCallback, callback)
-                    else -> {
-                        loadExtractor(link, "$directUrl/", subtitleCallback, callback)
-                    }
+                if (src.contains(mainServer) || src.contains("rebahin")) {
+                    invokeRebahinNewPlayer(src, subtitleCallback, callback)
+                } else {
+                    loadExtractor(src, directUrl ?: mainUrl, subtitleCallback, callback)
                 }
             }
         }
 
-        return true
+        return sources.isNotEmpty()
     }
 
-    private suspend fun invokeLokalSource(
+    private suspend fun invokeRebahinNewPlayer(
             url: String,
             subCallback: (SubtitleFile) -> Unit,
             sourceCallback: (ExtractorLink) -> Unit
     ) {
-        val document =
-                app.get(
-                                url,
-                                allowRedirects = false,
-                                referer = directUrl,
-                                headers =
-                                        mapOf(
-                                                "Accept" to
-                                                        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
-                                        )
-                        )
-                        .document
+        val realUrl = fixUrl(url)
+        var response = app.get(realUrl, referer = directUrl ?: mainUrl, allowRedirects = true, timeout = 30)
 
-        document.select("script").find { it.data().contains("config =") }?.data()?.let { script ->
-            Regex("\"file\":\\s?\"(.+.m3u8)\"").find(script)?.groupValues?.getOrNull(1)?.let { link
-                ->
-                M3u8Helper.generateM3u8(
-                                name,
-                                link,
-                                referer = "$mainServer/",
-                                headers = mapOf("Accept" to "*/*", "Origin" to mainServer)
-                        )
-                        .forEach(sourceCallback)
-            }
+        // Ikuti redirect jika ada
+        if (response.isSuccessful && response.url.toString() != realUrl) {
+            response = app.get(response.url.toString(), referer = realUrl)
+        }
 
-            val subData =
-                    Regex("\"?tracks\"?:\\s\\n?\\[(.*)],").find(script)?.groupValues?.getOrNull(1)
-                            ?: Regex("\"?tracks\"?:\\s\\n?\\[\\s*(?s:(.+)],\\n\\s*\"sources)")
-                                    .find(script)
-                                    ?.groupValues
-                                    ?.getOrNull(1)
-            tryParseJson<List<Tracks>>("[$subData]")?.map {
-                subCallback.invoke(
+        val doc = response.document
+        val html = doc.outerHtml()
+
+        // Extract m3u8 dari script (pola umum 2025+)
+        val m3u8Links = Regex("""(https?://[^\s"'<>]+\.m3u8)""").findAll(html).map { it.value }.toList() +
+                Regex("""["']?file["']?\s*[:=]\s*["']([^"']+\.m3u8)["']""").findAll(html).map { it.groupValues[1] } +
+                Regex("""["']?src["']?\s*[:=]\s*["']([^"']+\.m3u8)["']""").findAll(html).map { it.groupValues[1] }
+
+        m3u8Links.distinct().forEach { m3u8 ->
+            M3u8Helper.generateM3u8(
+                    name,
+                    m3u8,
+                    referer = realUrl,
+                    headers = mapOf("Origin" to mainServer, "Referer" to realUrl)
+            ).forEach(sourceCallback)
+        }
+
+        // Subtitle tracks
+        val tracksStr = Regex("""tracks\s*[:=]\s*(\[.+?\])""", RegexOption.DOT_MATCHES_ALL)
+                .find(html)?.groupValues?.get(1) ?: ""
+        tryParseJson<List<Tracks>>("[$tracksStr]")?.forEach { track ->
+            track.file?.takeIf { it.endsWith(".srt") || it.endsWith(".vtt") }?.let { file ->
+                subCallback(
                         newSubtitleFile(
-                                getLanguage(it.label ?: return@map null),
-                                if (it.file?.contains(".srt") == true) it.file else return@map null
+                                getLanguage(track.label ?: "Default"),
+                                fixUrl(file, realUrl)
                         )
                 )
             }
