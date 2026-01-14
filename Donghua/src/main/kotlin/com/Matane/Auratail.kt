@@ -18,8 +18,7 @@ class Auratail : Anichin() {
         "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 override val mainPage = mainPageOf(
-        "" to "Update Terbaru",                              // homepage utama
-        "" to "Home - Terbaru Hari Ini",           // Baris 1: Full terbaru
+        "" to "Home - Update Terbaru",           // Baris 1: Full terbaru
         "?order=update&per_page=12" to "Update Terbaru (Bagian 1)",  // Baris 2: Potong sebagian
         "?order=update&per_page=12&page=2" to "Update Terbaru (Bagian 2)", // Baris 3: Halaman berikutnya
         "?order=popular" to "Paling Populer"
