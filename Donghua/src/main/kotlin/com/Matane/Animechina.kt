@@ -64,7 +64,7 @@ private fun Element.toSearchResult(): SearchResponse? {
 
     return newAnimeSearchResponse(title, href, TvType.Anime) {
         this.posterUrl = posterUrl
-        this.name = title  // Explicit set name supaya judul pasti tampil di UI atas
+        this.name = title
     }
 }
 
@@ -97,7 +97,7 @@ override suspend fun load(url: String): LoadResponse {
             name = title,
             url = url,
             type = TvType.AnimeMovie,
-            dataUrl = url  /
+            dataUrl = url  
         ) {
             this.posterUrl = poster
             this.plot = synopsis
