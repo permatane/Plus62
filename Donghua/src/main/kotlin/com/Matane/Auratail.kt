@@ -18,9 +18,8 @@ class Auratail : Anichin() {
         "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 override val mainPage = mainPageOf(
-        "" to "Home - Update Terbaru",           // Baris 1: Full terbaru
-        "?order=update&per_page=12" to "-----",  // Baris 2: Potong sebagian
-        "?order=update&per_page=12&page=2" to "-----", // Baris 3: Halaman berikutnya
+        "" to "Home - Update Terbaru",           
+        "page/2/" to "-----",  
         "?order=popular" to "Paling Populer"
         // "genre/ongoing/?order=update" to "Update Terbaru",
         // "genre/ongoing/?order=popular" to "Paling Populer",
@@ -31,7 +30,7 @@ override val mainPage = mainPageOf(
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("$mainUrl/page/$page").documentLarge
         val home     = document.select("article.bs, article.bsx, .listupd article")
-            .mapNotNull { it.toSearchResult() } .take(12)
+            .mapNotNull { it.toSearchResult() }
 
         return newHomePageResponse(
             list    = HomePageList(
