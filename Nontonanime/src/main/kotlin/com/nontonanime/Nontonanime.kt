@@ -186,7 +186,7 @@ class Nontonanime : MainAPI() {
         }
     }
 
-    override suspend fun loadLinks(
+   override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -231,7 +231,7 @@ class Nontonanime : MainAPI() {
         }
     }
 
-    private fun Element.getImageAttr(): String? {
+    private fun Element.getImageAttr(): String {
         return when {
             this.hasAttr("data-src") -> this.attr("abs:data-src")
             this.hasAttr("data-lazy-src") -> this.attr("abs:data-lazy-src")
@@ -246,4 +246,5 @@ class Nontonanime : MainAPI() {
         @JsonProperty("found_posts") val found_posts: Int?,
         @JsonProperty("content") val content: String
     )
+
 }
