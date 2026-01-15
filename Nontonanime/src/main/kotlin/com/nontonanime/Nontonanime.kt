@@ -25,11 +25,7 @@ class Nontonanime : MainAPI() {
         TvType.AnimeMovie,
         TvType.OVA
     )
-
-   private val BROWSER_UA =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        
+      
     companion object {
         fun getType(t: String): TvType {
             return when {
@@ -50,7 +46,7 @@ class Nontonanime : MainAPI() {
 
     override val mainPage = mainPageOf(
         "" to "Latest Update",
-        "ongoing-list/" to " Ongoing List",
+        "ongoing-list/?sort=date&mode=sort" to " Ongoing List",
         "popular-series/" to "Popular Series",
     )
 
