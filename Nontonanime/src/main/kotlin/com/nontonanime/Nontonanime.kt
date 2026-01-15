@@ -101,7 +101,6 @@ class Nontonanime : MainAPI() {
 
         val animeCard = document.selectFirst("div.anime-card") ?: return null
 
-        // Title dari alt img atau fallback
         val title = animeCard.selectFirst(".anime-card__sidebar img")?.attr("alt")?.trim()
             ?.removePrefix("Nonton ")?.removeSuffix(" Sub Indo") ?: return null
 
@@ -109,15 +108,12 @@ class Nontonanime : MainAPI() {
 
         val tags = animeCard.select(".anime-card__genres a.genre-tag").map { it.text() }
 
-        // Year dari aired
         val aired = animeCard.selectFirst("li:contains(Aired:)")?.text()?.substringAfter("Aired:")?.trim() ?: ""
         val year = Regex("(\\d{4})").find(aired)?.groupValues?.get(1)?.toIntOrNull()
 
-        // Status dari .info-item.status-airing
         val statusText = animeCard.selectFirst(".info-item.status-airing")?.text()?.trim() ?: ""
         val status = getStatus(statusText)
 
-        // Type dari .anime-card__score .type (misal ONA, TV, dll)
         val typeText = animeCard.selectFirst(".anime-card__score .type")?.text()?.trim() ?: ""
         val type = getType(typeText)
 
@@ -127,33 +123,53 @@ class Nontonanime : MainAPI() {
 
         val trailer = animeCard.selectFirst("a.trailerbutton")?.attr("href")
 
-        // Episodes: Coba ambil dari .meta-episodes jika statis, atau fallback ke mishafilter ajax (jika button.buttfilter ada)
-        val episodes = if (document.select("button.buttfilter").isNotEmpty()) {
-            val id = animeCard.selectFirst(".bookmark")?.attr("data-id") ?: ""
-            val numEp = animeCard.selectFirst(".info-item:contains(Episodes)")?.text()?.replace(Regex("\\D"), "") ?: "1"
-            Jsoup.parse(
-                app.post(
+        // Ambil nonce untuk mishafilter (dari script atau meta)
+        val nonceScript = document.select("script:contains(misha), script:contains(lazySearch)").html()
+        val mishaNonce = Regex("""nonce["']?\s*:\s*["']([^"']+)["']""").find(nonceScript)?.groupValues?.get(1) ?: ""
+
+        // Episodes: Prioritaskan AJAX mishafilter untuk full list
+        val episodes = if (true) {  // Selalu coba AJAX dulu
+            val seriesId = animeCard.selectFirst(".bookmark")?.attr("data-id") ?: ""  // data-id="153447"
+            val numEpRaw = animeCard.selectFirst(".info-item:contains(Episodes)")?.text()?.trim() ?: "1"
+            val numEp = numEpRaw.replace(Regex("\\D+"), "")  // "24 Episodes" → "24"
+
+            if (seriesId.isBlank() || numEp == "1") {
+                // Fallback statis jika gagal
+                document.select(".meta-episodes .meta-episode-item a.ep-link").map {
+                    val episodeStr = it.text().trim()
+                    val episodeNum = Regex("Episode (\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
+                    val link = fixUrl(it.attr("href"))
+                    newEpisode(link) { this.episode = episodeNum }
+                }.reversed()
+            } else {
+                val ajaxResponse = app.post(
                     url = "$mainUrl/wp-admin/admin-ajax.php",
                     data = mapOf(
+                        "action" to "mishafilter",
+                        "series_id" to seriesId,
                         "misha_number_of_results" to numEp,
                         "misha_order_by" to "date-DESC",
-                        "action" to "mishafilter",
-                        "series_id" to id
-                    )
-                ).parsed<EpResponse>().content
-            ).select("li").map {
-                val episodeStr = it.selectFirst("a")?.text()?.trim() ?: ""
-                val episode = Regex("Episode\\s?(\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
-                val link = fixUrl(it.selectFirst("a")!!.attr("href"))
-                newEpisode(link) { this.episode = episode }
-            }.reversed()
+                        "nonce" to mishaNonce  // Tambah nonce jika dibutuhkan
+                    ),
+                    headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                )
+
+                val contentHtml = ajaxResponse.parsed<EpResponse>().content
+                Jsoup.parse(contentHtml).select("li").mapNotNull {
+                    val aTag = it.selectFirst("a") ?: return@mapNotNull null
+                    val episodeStr = aTag.text().trim()
+                    val episodeNum = Regex("Episode\\s?(\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
+                    val link = fixUrl(aTag.attr("href"))
+                    newEpisode(link) { this.episode = episodeNum }
+                }.reversed()
+            }
         } else {
-            // Fallback scrape langsung dari meta-episodes (Pertama & Terakhir, tapi bisa extend jika full list)
+            // Fallback statis
             document.select(".meta-episodes .meta-episode-item a.ep-link").map {
                 val episodeStr = it.text().trim()
-                val episode = Regex("Episode (\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
+                val episodeNum = Regex("Episode (\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
                 val link = fixUrl(it.attr("href"))
-                newEpisode(link) { this.episode = episode }
+                newEpisode(link) { this.episode = episodeNum }
             }.reversed()
         }
 
@@ -186,7 +202,7 @@ class Nontonanime : MainAPI() {
         }
     }
 
-   override suspend fun loadLinks(
+    override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -231,7 +247,7 @@ class Nontonanime : MainAPI() {
         }
     }
 
-    private fun Element.getImageAttr(): String {
+    private fun Element.getImageAttr(): String? {
         return when {
             this.hasAttr("data-src") -> this.attr("abs:data-src")
             this.hasAttr("data-lazy-src") -> this.attr("abs:data-lazy-src")
@@ -246,5 +262,4 @@ class Nontonanime : MainAPI() {
         @JsonProperty("found_posts") val found_posts: Int?,
         @JsonProperty("content") val content: String
     )
-
 }
