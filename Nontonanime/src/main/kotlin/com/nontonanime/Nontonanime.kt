@@ -188,74 +188,78 @@ class Nontonanime : MainAPI() {
         }
     }
 
-    override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
+override suspend fun loadLinks(
+    data: String,
+    isCasting: Boolean,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+): Boolean {
 
-        val document = app.get(data, headers = mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")).document
+    val document = app.get(data, headers = mapOf(
+        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    )).document
 
-        val nonceScript = document.select("script#ajax_video-js-extra").html().let {
-            AppUtils.tryParseJson<Map<String, String>>(it.substringAfter("="))?.get("nonce")
-        } ?: document.select("script:contains(player_ajax)").html().let {
-            Regex("""nonce["']?\s*:\s*["']([^"']+)["']""").find(it)?.groupValues?.get(1)
-        } ?: return false
-
-        document.select(".container1 > ul > li:not(.boxtab), .anime-card__main ul li:not(.boxtab), .server-list ul li").amap {
-            val dataPost = it.attr("data-post")
-            val dataNume = it.attr("data-nume")
-            val dataType = it.attr("data-type")
-
-            val iframe = app.post(
-                url = "$mainUrl/wp-admin/admin-ajax.php",
-                data = mapOf(
-                    "action" to "player_ajax",
-                    "post" to dataPost,
-                    "nume" to dataNume,
-                    "type" to dataType,
-                    "nonce" to nonce
-                ),
-                referer = data,
-                headers = mapOf(
-                    "X-Requested-With" to "XMLHttpRequest",
-                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                )
-            ).document.selectFirst("iframe")?.attr("src")
-
-            loadExtractor(iframe ?: return@amap, "$mainUrl/", subtitleCallback, callback)
-        }
-
-        return true
-    }
-
-    private fun getBaseUrl(url: String): String {
-        return URI(url).let {
-            "${it.scheme}://${it.host}"
+    // Extract nonce with multiple fallback methods (most reliable for this site)
+    var nonce = ""
+    val scriptExtra = document.selectFirst("script#ajax_video-js-extra")
+    
+    if (scriptExtra != null) {
+        // Method 1: inline script with = { ... }
+        nonce = scriptExtra.html().substringAfter("nonce\":\"").substringBefore("\"")
+            .takeIf { it.isNotBlank() } 
+            ?: scriptExtra.html().substringAfter("'nonce\":\"").substringBefore("\"")
+        
+        // Method 2: from src base64 (original method)
+        if (nonce.isBlank() && scriptExtra.hasAttr("src")) {
+            val src = scriptExtra.attr("src")
+            if (src.contains("base64,")) {
+                val base64Part = src.substringAfter("base64,")
+                try {
+                    val decoded = base64Decode(base64Part)
+                    nonce = AppUtils.parseJson<Map<String, String>>(decoded.substringAfter("="))["nonce"] ?: ""
+                } catch (e: Exception) {
+                    // silent fail
+                }
+            }
         }
     }
 
-    private fun Element.getImageAttr(): String {
-        return when {
-            this.hasAttr("data-src") -> this.attr("abs:data-src")
-            this.hasAttr("data-lazy-src") -> this.attr("abs:data-lazy-src")
-            this.hasAttr("srcset") -> this.attr("abs:srcset").substringBefore(" ")
-            else -> this.attr("abs:src")
+    // Final fallback: regex from any script containing player_ajax
+    if (nonce.isBlank()) {
+        val anyScript = document.select("script:contains(player_ajax)").html()
+        nonce = Regex("""nonce["']?\s*:\s*["']([^"']+)["']""").find(anyScript)?.groupValues?.get(1) ?: ""
+    }
+
+    if (nonce.isBlank()) return false  // No nonce = cannot load player
+
+    document.select(".container1 > ul > li:not(.boxtab), .server-list > li, .servers > li, .list-server > li").amap {
+        val dataPost = it.attr("data-post")
+        val dataNume = it.attr("data-nume")
+        val dataType = it.attr("data-type")
+
+        if (dataPost.isBlank()) return@amap
+
+        val response = app.post(
+            url = "$mainUrl/wp-admin/admin-ajax.php",
+            data = mapOf(
+                "action" to "player_ajax",
+                "post" to dataPost,
+                "nume" to dataNume,
+                "type" to dataType,
+                "nonce" to nonce
+            ),
+            referer = data,
+            headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+        )
+
+        val iframeSrc = response.document.selectFirst("iframe")?.attr("src") ?: ""
+        
+        if (iframeSrc.isNotBlank()) {
+            loadExtractor(iframeSrc, "$mainUrl/", subtitleCallback, callback)
         }
     }
 
-    private data class EpResponse(
-        @JsonProperty("posts") val posts: String?,
-        @JsonProperty("max_page") val max_page: Int?,
-        @JsonProperty("found_posts") val found_posts: Int?,
-        @JsonProperty("content") val content: String
-    )
-
-    private data class EpisodeItem(
-        val url: String,
-        val title: String,
-        val date: String
-    )
+    return true
+}
 
 }
