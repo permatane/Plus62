@@ -1,17 +1,10 @@
 package com.Nontonanime
 
-import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
-import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
-import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
-import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
-import java.net.URI
 
 class Nontonanime : MainAPI() {
     override var mainUrl = "https://s7.nontonanimeid.boats"
@@ -26,16 +19,6 @@ class Nontonanime : MainAPI() {
         TvType.OVA
     )
 
-    companion object {
-        fun getType(t: String): TvType {
-            return when {
-                t.contains("Movie", true) -> TvType.AnimeMovie
-                t.contains("OVA", true) -> TvType.OVA
-                else -> TvType.Anime
-            }
-        }
-    }
-
     override val mainPage = mainPageOf(
         "" to "Latest Update",
         "ongoing-list/" to "Ongoing List",
@@ -44,6 +27,7 @@ class Nontonanime : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("$mainUrl/${request.data}").document
+        // Selector .animeseries mencakup poster di halaman depan
         val home = document.select(".animeseries").mapNotNull {
             it.toSearchResult()
         }
@@ -51,29 +35,31 @@ class Nontonanime : MainAPI() {
     }
 
     private fun Element.toSearchResult(): AnimeSearchResponse {
-        val href = fixUrl(this.selectFirst("a")!!.attr("href"))
+        val a = this.selectFirst("a")
+        val href = fixUrl(a?.attr("href") ?: "")
         val title = this.selectFirst(".title")?.text() ?: ""
-
-        val posterUrl = this.selectFirst("img")?.attr("abs:data-src") 
-            ?: this.selectFirst("img")?.attr("abs:src")
+        
+        // PERBAIKAN POSTER: Mengambil atribut data-src karena situs menggunakan lazy load
+        val posterUrl = this.selectFirst("img")?.let { 
+            val url = it.attr("data-src").ifEmpty { it.attr("src") }
+            fixUrlNull(url)
+        }
 
         return newAnimeSearchResponse(title, href, TvType.Anime) {
             this.posterUrl = posterUrl
-            addDubStatus(dubExist = false, subExist = true)
         }
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.get("$mainUrl/?s=$query").document
-
         return document.select(".result > ul > li").mapNotNull {
             val title = it.selectFirst("h2")?.text()?.trim() ?: ""
+            val href = fixUrl(it.selectFirst("a")?.attr("href") ?: "")
+            // Search biasanya menggunakan src langsung
             val poster = it.selectFirst("img")?.attr("abs:src")
-            val href = fixUrl(it.selectFirst("a")!!.attr("href"))
-
+            
             newAnimeSearchResponse(title, href, TvType.Anime) {
                 this.posterUrl = poster
-                addDubStatus(dubExist = false, subExist = true)
             }
         }
     }
@@ -81,22 +67,22 @@ class Nontonanime : MainAPI() {
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
         
-
+        // PERBAIKAN "COMING SOON": Jika klik dari episode, paksa ambil data dari halaman series/detail
         val detailUrl = if (url.contains("-episode-")) {
             document.selectFirst(".nvs.nvsc a")?.attr("href") ?: url
         } else url
-
+        
         val detailDoc = if (detailUrl != url) app.get(detailUrl).document else document
 
         val title = detailDoc.selectFirst("h1.entry-title")?.text()
             ?.replace("Nonton Anime", "")?.replace("Sub Indo", "")?.trim() ?: ""
         
-        // Selector poster pada halaman detail sesuai URL yang diberikan
         val poster = detailDoc.selectFirst(".poster img")?.attr("abs:src")
         val description = detailDoc.select(".entry-content.seriesdesc p").text().trim()
         val rating = detailDoc.select(".nilaiseries").text().trim()
 
-        val episodes = detailDoc.select(".misha_posts_wrap2 li").mapNotNull {
+        // Selector episode terbaru sesuai struktur misha_posts_wrap2
+        val episodes = detailDoc.select(".misha_posts_wrap2 li, .list-episode li").mapNotNull {
             val a = it.selectFirst("a") ?: return@mapNotNull null
             val name = a.text()
             val epNum = Regex("Episode\\s?(\\d+)").find(name)?.groupValues?.get(1)?.toIntOrNull()
@@ -110,8 +96,7 @@ class Nontonanime : MainAPI() {
             this.posterUrl = poster
             addEpisodes(DubStatus.Subbed, episodes)
             plot = description
-
-            addScore(rating) 
+            addScore(rating)
         }
     }
 
@@ -121,19 +106,18 @@ class Nontonanime : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-
         val res = app.get(data)
         val document = res.document
 
-        // Mengambil nonce menggunakan Regex dari source code halaman
+        // PERBAIKAN VIDEO: Mengambil nonce secara dinamis dari script di halaman
         val nonce = Regex("""["']nonce["']\s*:\s*["']([^"']+)""").find(res.text)?.groupValues?.get(1)
 
-        document.select(".container1 > ul > li:not(.boxtab)").amap {
+        document.select(".container1 > ul > li[data-post]").amap {
             val dataPost = it.attr("data-post")
             val dataNume = it.attr("data-nume")
             val dataType = it.attr("data-type")
 
-            if (nonce != null && dataPost.isNotEmpty()) {
+            if (!nonce.isNullOrEmpty()) {
                 val response = app.post(
                     url = "$mainUrl/wp-admin/admin-ajax.php",
                     data = mapOf(
@@ -155,7 +139,6 @@ class Nontonanime : MainAPI() {
                 }
             }
         }
-
         return true
     }
 }
