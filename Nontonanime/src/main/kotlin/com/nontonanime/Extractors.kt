@@ -33,7 +33,7 @@ class KotakAnimelink1 : Hxfile() {
 }
 
 class KotakAnimelink2 : Hxfile() {
-    override val name = "KotakAnimelink1"
+    override val name = "KotakAnimelink2"
     override val mainUrl = "https://s2.kotakanimeid.link"
     override val requiresReferer = true
 }
