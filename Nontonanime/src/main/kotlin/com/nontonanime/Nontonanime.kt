@@ -138,7 +138,7 @@ class Nontonanime : MainAPI() {
             data = mapOf(
                 "action" to "search_endpoint",
                 "nonce" to nonce,
-                "query" to "",  // Query kosong untuk full list
+                "query" to "", // Kosong untuk full list
                 "post_id" to postId
             ),
             headers = mapOf("X-Requested-With" to "XMLHttpRequest")
@@ -147,10 +147,10 @@ class Nontonanime : MainAPI() {
         val episodes = if (episodesResponse.startsWith("[") && episodesResponse.endsWith("]")) {
             AppUtils.parseJson<List<EpisodeItem>>(episodesResponse).mapNotNull { item ->
                 val episodeNum = Regex("Episode\\s?(\\d+)").find(item.title)?.groupValues?.get(1)?.toIntOrNull()
-                newEpisode(item.url) { this.episode = episodeNum; this.name = item.title }
-            }.sortedBy { it.episode }
+                newEpisode(fixUrl(item.url)) { this.episode = episodeNum; this.name = item.title }
+            }.sortedBy { it.episode } // Urut dari episode 1 ke akhir
         } else {
-            // Fallback ke statis jika AJAX gagal
+            // Fallback jika AJAX gagal
             document.select(".meta-episodes .meta-episode-item a.ep-link").map {
                 val episodeStr = it.text().trim()
                 val episode = Regex("Episode (\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
@@ -195,15 +195,15 @@ class Nontonanime : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
 
-        val document = app.get(data).document
+        val document = app.get(data, headers = mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")).document
 
-        val nonce =
-            document.select("script#ajax_video-js-extra").attr("src").substringAfter("base64,")
-                .let {
-                    AppUtils.parseJson<Map<String, String>>(base64Decode(it).substringAfter("="))["nonce"]
-                }
+        val nonceScript = document.select("script#ajax_video-js-extra").html().let {
+            AppUtils.tryParseJson<Map<String, String>>(it.substringAfter("="))?.get("nonce")
+        } ?: document.select("script:contains(player_ajax)").html().let {
+            Regex("""nonce["']?\s*:\s*["']([^"']+)["']""").find(it)?.groupValues?.get(1)
+        } ?: return false
 
-        document.select(".container1 > ul > li:not(.boxtab)").amap {
+        document.select(".container1 > ul > li:not(.boxtab), .anime-card__main ul li:not(.boxtab), .server-list ul li").amap {
             val dataPost = it.attr("data-post")
             val dataNume = it.attr("data-nume")
             val dataType = it.attr("data-type")
@@ -215,10 +215,13 @@ class Nontonanime : MainAPI() {
                     "post" to dataPost,
                     "nume" to dataNume,
                     "type" to dataType,
-                    "nonce" to "$nonce"
+                    "nonce" to nonce
                 ),
                 referer = data,
-                headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                headers = mapOf(
+                    "X-Requested-With" to "XMLHttpRequest",
+                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                )
             ).document.selectFirst("iframe")?.attr("src")
 
             loadExtractor(iframe ?: return@amap, "$mainUrl/", subtitleCallback, callback)
