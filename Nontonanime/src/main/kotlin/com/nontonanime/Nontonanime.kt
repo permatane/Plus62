@@ -2,10 +2,6 @@ package com.Nontonanime
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
-import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
 import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
@@ -25,33 +21,26 @@ class Nontonanime : MainAPI() {
         TvType.AnimeMovie,
         TvType.OVA
     )
-      
+
     companion object {
         fun getType(t: String): TvType {
             return when {
-                t.contains("TV", true) -> TvType.Anime
                 t.contains("Movie", true) -> TvType.AnimeMovie
-                else -> TvType.OVA
-            }
-        }
-
-        fun getStatus(t: String): ShowStatus {
-            return when (t) {
-                "Finished Airing" -> ShowStatus.Completed
-                "Currently Airing" -> ShowStatus.Ongoing
-                else -> ShowStatus.Completed
+                t.contains("OVA", true) -> TvType.OVA
+                else -> TvType.Anime
             }
         }
     }
 
     override val mainPage = mainPageOf(
         "" to "Latest Update",
-        "ongoing-list/?sort=date&mode=sort" to " Ongoing List",
+        "ongoing-list/" to "Ongoing List",
         "popular-series/" to "Popular Series",
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("$mainUrl/${request.data}").document
+
         val home = document.select(".animeseries").mapNotNull {
             it.toSearchResult()
         }
@@ -59,123 +48,66 @@ class Nontonanime : MainAPI() {
     }
 
     private fun Element.toSearchResult(): AnimeSearchResponse {
-        val href = fixUrl(this.selectFirst("a")!!.attr("href"))
+        val a = this.selectFirst("a")
+        val href = fixUrl(a?.attr("href") ?: "")
         val title = this.selectFirst(".title")?.text() ?: ""
-        val posterUrl = fixUrlNull(this.selectFirst("img")?.getImageAttr())
+
+        val posterUrl = this.selectFirst("img")?.let { 
+            it.attr("abs:data-src").ifEmpty { it.attr("abs:src") } 
+        }
 
         return newAnimeSearchResponse(title, href, TvType.Anime) {
             this.posterUrl = posterUrl
-            addDubStatus(dubExist = false, subExist = true)
         }
-
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val link = "$mainUrl/?s=$query"
-        val document = app.get(link).document
-
+        val document = app.get("$mainUrl/?s=$query").document
         return document.select(".result > ul > li").mapNotNull {
-            val title = it.selectFirst("h2")!!.text().trim()
-            val poster = it.selectFirst("img")?.getImageAttr()
-            val tvType = getType(
-                it.selectFirst(".boxinfores > span.typeseries")!!.text()
-            )
-            val href = fixUrl(it.selectFirst("a")!!.attr("href"))
-
-            newAnimeSearchResponse(title, href, tvType) {
+            val title = it.selectFirst("h2")?.text()?.trim() ?: ""
+            val href = fixUrl(it.selectFirst("a")?.attr("href") ?: "")
+            val poster = it.selectFirst("img")?.attr("abs:src")
+            
+            newAnimeSearchResponse(title, href, TvType.Anime) {
                 this.posterUrl = poster
-                addDubStatus(dubExist = false, subExist = true)
             }
         }
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        val fixUrl = if (url.contains("/anime/")) {
-            url
-        } else {
-            app.get(url).document.selectFirst("div.nvs.nvsc a")?.attr("href")
-        }
+        val document = app.get(url).document
+        
 
-        val req = app.get(fixUrl ?: return null)
-        mainUrl = getBaseUrl(req.url)
-        val document = req.document
+        val detailUrl = if (url.contains("-episode-")) {
+            document.selectFirst(".nvs.nvsc a")?.attr("href") ?: url
+        } else url
+        
+        val detailDoc = if (detailUrl != url) app.get(detailUrl).document else document
 
-        val title = document.selectFirst("h1.entry-title.cs")!!.text()
-            .removeSurrounding("Nonton Anime", "Sub Indo").trim()
-        val poster = document.selectFirst(".poster > img")?.getImageAttr()
-        val tags = document.select(".tagline > a").map { it.text() }
+        val title = detailDoc.selectFirst("h1.entry-title")?.text()
+            ?.replace("Nonton Anime", "")?.replace("Sub Indo", "")?.trim() ?: ""
+        
+        val poster = detailDoc.selectFirst(".poster img")?.attr("abs:src")
+        val description = detailDoc.select(".entry-content.seriesdesc p").text().trim()
+        val rating = detailDoc.select(".nilaiseries").text().trim()
 
-        val year = Regex("\\d, (\\d*)").find(
-            document.select(".bottomtitle > span:nth-child(5)").text()
-        )?.groupValues?.get(1)?.toIntOrNull()
-        val status = getStatus(
-            document.select("span.statusseries").text().trim()
-        )
-        val type = getType(document.select("span.typeseries").text().trim().lowercase())
-        val rating = document.select("span.nilaiseries").text().trim()
-        val description = document.select(".entry-content.seriesdesc > p").text().trim()
-        val trailer = document.selectFirst("a.trailerbutton")?.attr("href")
 
-        val episodes = if (document.select("button.buttfilter").isNotEmpty()) {
-            val id = document.select("input[name=series_id]").attr("value")
-            val numEp =
-                document.selectFirst(".latestepisode > a")?.text()?.replace(Regex("\\D"), "")
-                    .toString()
-            Jsoup.parse(
-                app.post(
-                    url = "$mainUrl/wp-admin/admin-ajax.php",
-                    data = mapOf(
-                        "misha_number_of_results" to numEp,
-                        "misha_order_by" to "date-DESC",
-                        "action" to "mishafilter",
-                        "series_id" to id
-                    )
-                ).parsed<EpResponse>().content
-            ).select("li").map {
-                val episode = Regex("Episode\\s?(\\d+)").find(
-                    it.selectFirst("a")?.text().toString()
-                )?.groupValues?.getOrNull(0) ?: it.selectFirst("a")?.text()
-                val link = fixUrl(it.selectFirst("a")!!.attr("href"))
-                newEpisode(link){this.episode = episode?.toIntOrNull()}
-            }.reversed()
-        } else {
-            document.select("ul.misha_posts_wrap2 > li").map {
-                val episode = Regex("Episode\\s?(\\d+)").find(
-                    it.selectFirst("a")?.text().toString()
-                )?.groupValues?.getOrNull(0) ?: it.selectFirst("a")?.text()
-                val link = it.select("a").attr("href")
-                newEpisode(link){this.episode = episode?.toIntOrNull()}
-            }.reversed()
-        }
-
-        val recommendations = document.select(".result > li").mapNotNull {
-            val epHref = it.selectFirst("a")!!.attr("href")
-            val epTitle = it.selectFirst("h3")!!.text()
-            val epPoster = it.selectFirst(".top > img")?.getImageAttr()
-            newAnimeSearchResponse(epTitle, epHref, TvType.Anime) {
-                this.posterUrl = epPoster
-                addDubStatus(dubExist = false, subExist = true)
+        val episodes = detailDoc.select(".misha_posts_wrap2 li").mapNotNull {
+            val a = it.selectFirst("a") ?: return@mapNotNull null
+            val name = a.text()
+            val epNum = Regex("Episode\\s?(\\d+)").find(name)?.groupValues?.get(1)?.toIntOrNull()
+            newEpisode(fixUrl(a.attr("href"))) {
+                this.name = name
+                this.episode = epNum
             }
-        }
+        }.reversed()
 
-        val tracker = APIHolder.getTracker(listOf(title), TrackerType.getTypes(type), year, true)
-
-        return newAnimeLoadResponse(title, url, type) {
-            engName = title
-            posterUrl = tracker?.image ?: poster
-            backgroundPosterUrl = tracker?.cover
-            this.year = year
+        return newAnimeLoadResponse(title, url, TvType.Anime) {
+            this.posterUrl = poster
             addEpisodes(DubStatus.Subbed, episodes)
-            showStatus = status
-            addScore(rating)
             plot = description
-            addTrailer(trailer)
-            this.tags = tags
-            this.recommendations = recommendations
-            addMalId(tracker?.malId)
-            addAniListId(tracker?.aniId?.toIntOrNull())
+            LoadResponse.addScore(this, rating)
         }
-
     }
 
     override suspend fun loadLinks(
@@ -184,59 +116,40 @@ class Nontonanime : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        val res = app.get(data)
+        val document = res.document
 
-        val document = app.get(data).document
 
-        val nonce =
-            document.select("script#ajax_video-js-extra").attr("src").substringAfter("base64,")
-                .let {
-                    AppUtils.parseJson<Map<String, String>>(base64Decode(it).substringAfter("="))["nonce"]
-                }
+        val nonce = Regex("""["']nonce["']\s*:\s*["']([^"']+)""").find(res.text)?.groupValues?.get(1)
 
-        document.select(".container1 > ul > li:not(.boxtab)").amap {
+
+        document.select(".container1 > ul > li[data-post]").amap {
             val dataPost = it.attr("data-post")
             val dataNume = it.attr("data-nume")
             val dataType = it.attr("data-type")
 
-            val iframe = app.post(
-                url = "$mainUrl/wp-admin/admin-ajax.php",
-                data = mapOf(
-                    "action" to "player_ajax",
-                    "post" to dataPost,
-                    "nume" to dataNume,
-                    "type" to dataType,
-                    "nonce" to "$nonce"
-                ),
-                referer = data,
-                headers = mapOf("X-Requested-With" to "XMLHttpRequest")
-            ).document.selectFirst("iframe")?.attr("src")
+            if (nonce != null) {
+                val response = app.post(
+                    url = "$mainUrl/wp-admin/admin-ajax.php",
+                    data = mapOf(
+                        "action" to "player_ajax",
+                        "post" to dataPost,
+                        "nume" to dataNume,
+                        "type" to dataType,
+                        "nonce" to nonce
+                    ),
+                    referer = data,
+                    headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                ).text
 
-            loadExtractor(iframe ?: return@amap, "$mainUrl/", subtitleCallback, callback)
+
+                val iframeUrl = Regex("""src=['"]([^"']+)""").find(response)?.groupValues?.get(1)
+                
+                if (!iframeUrl.isNullOrEmpty()) {
+                    loadExtractor(fixUrl(iframeUrl), "$mainUrl/", subtitleCallback, callback)
+                }
+            }
         }
-
         return true
     }
-
-    private fun getBaseUrl(url: String): String {
-        return URI(url).let {
-            "${it.scheme}://${it.host}"
-        }
-    }
-
-    private fun Element.getImageAttr(): String {
-        return when {
-            this.hasAttr("data-src") -> this.attr("abs:data-src")
-            this.hasAttr("data-lazy-src") -> this.attr("abs:data-lazy-src")
-            this.hasAttr("srcset") -> this.attr("abs:srcset").substringBefore(" ")
-            else -> this.attr("abs:src")
-        }
-    }
-
-    private data class EpResponse(
-        @JsonProperty("posts") val posts: String?,
-        @JsonProperty("max_page") val max_page: Int?,
-        @JsonProperty("found_posts") val found_posts: Int?,
-        @JsonProperty("content") val content: String
-    )
-
 }
