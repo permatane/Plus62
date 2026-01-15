@@ -46,7 +46,7 @@ class Nontonanime : MainAPI() {
 
     override val mainPage = mainPageOf(
         "" to "Latest Update",
-        "ongoing-list/?sort=date&mode=sort" to " Ongoing List",
+        "ongoing-list/?sort=date&mode=sort" to "Ongoing List",
         "popular-series/" to "Popular Series",
     )
 
@@ -187,10 +187,12 @@ class Nontonanime : MainAPI() {
 
         val document = app.get(data).document
 
-        val nonce =
-            document.select("script#ajax_video-js-extra").html().let {
-                AppUtils.tryParseJson<Map<String, String>>(it.substringAfter("="))?.get("nonce")
-            } ?: return false
+        val nonceScript = document.selectFirst("script#ajax_video-js-extra")?.html() ?: ""
+        val nonce = nonceScript.substringAfter("nonce\":\"").substringBefore("\"")
+            .takeIf { it.isNotBlank() }
+            ?: nonceScript.substringAfter("'nonce':'").substringBefore("'")
+            ?: Regex("""nonce["']?\s*:\s*["']([^"']+)["']""").find(nonceScript)?.groupValues?.get(1)
+            ?: return false  // Fallback if nonce not found
 
         document.select(".container1 > ul > li:not(.boxtab)").amap {
             val dataPost = it.attr("data-post")
@@ -222,14 +224,16 @@ class Nontonanime : MainAPI() {
         }
     }
 
-    private fun Element.getImageAttr(): String {
+    private fun Element.getImageAttr(): String? {
         return when {
             this.hasAttr("data-src") -> this.attr("abs:data-src")
             this.hasAttr("data-lazy-src") -> this.attr("abs:data-lazy-src")
             this.hasAttr("data-lazyload") -> this.attr("abs:data-lazyload")
             this.hasAttr("data-original") -> this.attr("abs:data-original")
-            this.hasAttr("srcset") -> this.attr("abs:srcset").substringBefore(" ")
-            else -> this.attr("abs:src")
+            this.hasAttr("data-lazy") -> this.attr("abs:data-lazy")
+            this.hasAttr("srcset") -> this.attr("abs:srcset").split(",").firstOrNull()?.trim()?.split(" ")?.firstOrNull()
+            this.hasAttr("src") && this.attr("src").isNotBlank() -> this.attr("abs:src")
+            else -> null
         }
     }
 
