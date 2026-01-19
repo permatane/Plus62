@@ -11,6 +11,7 @@ class SoraStreamPlugin: Plugin() {
         // All providers should be added in this manner. Please don't edit the providers list directly.
         SoraStream.context = context
         registerMainAPI(SoraStream())
+        registerMainAPI(SoraStreamLite())
         registerExtractorAPI(Jeniusplay2())
     }
 }
