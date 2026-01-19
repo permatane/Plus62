@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 234
+version = 235
 
 cloudstream {
     language = "id"
@@ -23,5 +23,5 @@ cloudstream {
         "Movie",
     )
 
-    iconUrl = "https://github.com/duro92/ExtCloud/blob/main/SoraStream/Icon.png"
+    iconUrl = "https://raw.githubusercontent.com/permatane/Plus62/main/SoraStream/Icon.png"
 }
