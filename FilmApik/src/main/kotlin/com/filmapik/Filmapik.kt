@@ -12,6 +12,7 @@ import org.jsoup.nodes.Element
 
 class Filmapik : MainAPI() {
     override var mainUrl = "https://filmapik.to"
+    private var directUrl: String? = null
     override var name = "FilmApik"
     override val hasMainPage = true
     override var lang = "id"
@@ -69,7 +70,7 @@ private suspend fun updateToLatestDomain() {
         }
     }
 
-    override suspend fun search(query: String): List<SearchResponse> { updateToLatestDomain()
+    override suspend fun search(query: String): List<SearchResponse> {
         val document = app.get("$mainUrl?s=$query&post_type[]=post&post_type[]=tv").document
         return document.select("article.item").mapNotNull { it.toSearchResult() }
     }
@@ -83,7 +84,7 @@ private suspend fun updateToLatestDomain() {
         return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = poster }
     }
 
-    override suspend fun load(url: String): LoadResponse { updateToLatestDomain()
+    override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
         val title = document.selectFirst("h1[itemprop=name], .sheader h1, .sheader h2")?.text()?.trim()
             ?: document.selectFirst("#info h2")?.text()?.trim() ?: ""
