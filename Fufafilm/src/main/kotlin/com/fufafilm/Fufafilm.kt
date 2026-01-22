@@ -21,36 +21,28 @@ class Fufafilm : MainAPI() {
     }
     override var mainUrl = "https://fufafilm.sbs"
     private var directUrl: String? = null
-    override var name = "Fufafilm"
+    override var name = "Layar Kaca 21"
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes =
             setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-	private suspend fun updateToLatestDomain() {
-        if (!mainUrl.contains("fufafilm.sbs")) return  // Sudah update, skip
+	   private suspend fun updateToActiveDomain() {
+        if (!mainUrl.contains("fufafilm.sbs")) return
 
         val doc = app.get(mainUrl, timeout = 30).document
 
-        // Prioritas 1: tombol CTA utama (pola umum: "Klik di sini", "Masuk", "Situs Baru")
-        var newLink = doc.selectFirst(
-            "a:contains(KLIK), a:contains(HALAMAN)"
-        )?.attr("href")
+        // Cari <a> yang teksnya mengandung "KE HALAMAN" atau tombol hijau utama
+        val ctaLink = doc.select("a")
+            .firstOrNull { a ->
+                a.text().contains("KE HALAMAN", ignoreCase = true) ||
+                a.hasClass("cta-button") || a.hasClass("green-button")
+            }?.attr("href")
 
-        // Prioritas 2: link yang mengandung "fufafilm" tapi bukan domain lama
-        if (newLink.isNullOrBlank()) {
-            newLink = doc.selectFirst("a[href*='fufafilm'], a.cta, a.button, a.green-button")?.attr("href")
+        if (!ctaLink.isNullOrBlank() && ctaLink.startsWith("https://")) {
+            mainUrl = ctaLink.substringBeforeLast("/", "").substringBefore("?")
         }
-
-        // Validasi: pastikan link baru valid
-        if (!newLink.isNullOrBlank() && 
-       //     newLink.contains("fufafilm") && 
-            !newLink.contains("fufafilm.sbs") && 
-            newLink.startsWith("https://")) {
-
-            mainUrl = newLink.substringBeforeLast("/", "").substringBefore("?")
-        }
-	}
+	   }
 
     override val mainPage =
             mainPageOf(
