@@ -38,7 +38,7 @@ class Fufafilm : MainAPI() {
         // Hanya jalankan jika masih di landing page
         if (!mainUrl.contains("fufafilm.sbs")) return
 
-        val doc = app.get(mainUrl, timeout = 30).document
+        val doc = app.get(mainUrl, headers = headers, timeout = 60).document
 
         // Langsung ambil href dari tombol "KE HALAMAN Web LK21" (atau tombol hijau utama)
         val buttonLink = doc.select("a")
