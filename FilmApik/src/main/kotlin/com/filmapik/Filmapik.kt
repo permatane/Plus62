@@ -17,18 +17,14 @@ class Filmapik : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-private suspend fun updateToLatestDomain() {
-        if (mainUrl.contains("filmapik.to")) {
+private suspend fun updateToActiveDomain() {
+if (mainUrl.contains("filmapik.to")) {
             val doc = app.get(mainUrl).document
+            // Ambil href dari elemen yang sesuai dengan HTML landing page
+            val activeLink = doc.selectFirst("a.cta-button.green-button")?.attr("href")
+                ?: doc.selectFirst("a[href*='filmapik']")?.attr("href")
 
-            // Cari semua link yang mengarah ke domain filmapik.* (kecuali .to)
-            val activeLink = doc.select("a[href*='filmapik.']")
-                .firstOrNull { link ->
-                    val href = link.attr("href")
-                    href.contains("filmapik") && !href.contains("filmapik.to")
-                }?.attr("href")
-
-            if (!activeLink.isNullOrBlank()) {
+            if (!activeLink.isNullOrBlank() && activeLink.contains("filmapik")) {
                 mainUrl = activeLink.substringBeforeLast("/", "").substringBefore("?")
             }
         }
@@ -42,7 +38,7 @@ private suspend fun updateToLatestDomain() {
         "category/romance/page/%d/" to "Romance"
     )
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToLatestDomain()
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToActiveDomain()
         val url = "$mainUrl/${request.data.format(page)}"
         val document = app.get(url).document
         val items = document.select("div.items.normal article.item").mapNotNull { it.toSearchResult() }
