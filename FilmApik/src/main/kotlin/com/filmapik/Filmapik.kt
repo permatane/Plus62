@@ -17,29 +17,16 @@ class Filmapik : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-private suspend fun updateToActiveDomain() {
-        if (mainUrl.contains("filmapik.to")) {
-            try {
-                val response = app.get(mainUrl, headers = headers, timeout = 30)
-                val doc = response.document
-                var activeLink = doc.selectFirst("a.cta-button.green-button")?.attr("href")
+private suspend fun updateDomain() {
+        if (!mainUrl.contains("filmapik.to")) return
 
-                // Fallback jika class berubah: cari link yang mengandung filmapik tapi bukan .to
-                if (activeLink.isNullOrBlank()) {
-                    activeLink = doc.select("a[href*='filmapik']")
-                        .firstOrNull { it.attr("href").contains("filmapik") && !it.attr("href").contains("filmapik.to") }
-                        ?.attr("href")
-                }
+        val doc = app.get(mainUrl, timeout = 30).document
+        val link = doc.select("a")
+            .firstOrNull { it.text().contains("KE HALAMAN FILMAPIK", ignoreCase = true) }
+            ?.attr("href")
 
-                if (!activeLink.isNullOrBlank()) {
-                    mainUrl = activeLink.substringBeforeLast("/", "").substringBefore("?")
-                   Log.d("FILMAPIK", "Domain updated to: $mainUrl")
-                } else {
-                 Log.d("FILMAPIK", "Tidak menemukan CTA button atau link baru")
-                }
-            } catch (e: Exception) {
-                Log.e("FILMAPIK", "Gagal update domain: ${e.message}")
-            }
+        if (!link.isNullOrBlank()) {
+            mainUrl = link.substringBeforeLast("/", "").substringBefore("?")
         }
     }
 
@@ -51,7 +38,7 @@ private suspend fun updateToActiveDomain() {
         "category/romance/page/%d/" to "Romance"
     )
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToActiveDomain()
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateDomain()
         val url = "$mainUrl/${request.data.format(page)}"
         val document = app.get(url).document
         val items = document.select("div.items.normal article.item").mapNotNull { it.toSearchResult() }
