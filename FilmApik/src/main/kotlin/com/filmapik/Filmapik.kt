@@ -11,7 +11,7 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
 class Filmapik : MainAPI() {
-    override var mainUrl = "https://filmapik.to"
+    override var mainUrl = "https://filmapik.fitness"
     private var directUrl: String? = null
     override var name = "FilmApik"
     override val hasMainPage = true
