@@ -1,4 +1,4 @@
-package com.filmapik
+0package com.filmapik
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
@@ -28,7 +28,7 @@ private suspend fun updateToLatestDomain() {
         }
         
         if (!newLink.isNullOrBlank() && 
-            newLink.contains("filmapik") && 
+     //00       newLink.contains("filmapik") && 
             !newLink.contains("filmapik.to") //&& 
    //         newLink.startsWith("https://")
                 ) {
