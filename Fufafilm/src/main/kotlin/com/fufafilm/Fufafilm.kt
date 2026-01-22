@@ -21,7 +21,7 @@ class Fufafilm : MainAPI() {
     }
     override var mainUrl = "https://fufafilm.sbs"
     private var directUrl: String? = null
-    override var name = "FufaFilm Layar Kaca "
+    override var name = "FufaFilm LK21 "
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes =
@@ -104,7 +104,7 @@ private fun Element.toSearchResult(): SearchResponse? {
 }    
 
 
-    override suspend fun search(query: String, page: Int): SearchResponseList? {
+    override suspend fun search(query: String, page: Int): SearchResponseList? { updateToStreamingDomain()
 		val document = app.get("$mainUrl/page/$page/?s=$query&post_type[]=post&post_type[]=tv", timeout = 50L).document
 		val results = document.select("article.has-post-thumbnail").mapNotNull { it.toSearchResult() }.toNewSearchResponseList()
 		return results
@@ -117,7 +117,7 @@ private fun Element.toSearchResult(): SearchResponse? {
         return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = posterUrl }
     }
 
-        override suspend fun load(url: String): LoadResponse {
+        override suspend fun load(url: String): LoadResponse { updateToStreamingDomain()
     // Pakai Desktop User-Agent agar website tidak mengirim halaman mobile
     val desktopHeaders = mapOf(
         "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
