@@ -21,11 +21,11 @@ class Filmapik : MainAPI() {
 private suspend fun updateToLatestDomain() {
     if (mainUrl.contains("filmapik.to")) {
         val doc = app.get(mainUrl).document
-        var newLink = doc.selectFirst("a:contains(KE HALAMAN FILMAPIK), a.cta-button.green-button")?.attr("href")
+        var newLink = doc.selectFirst("a:contains(KE HALAMAN FILMAPIK), a.cta-button")?.attr("href")
         
         // fallback ke link filmapik baru
         if (newLink.isNullOrBlank()) {
-            newLink = doc.selectFirst("a[href*='filmapik'], a.green-button, a.cta-button")?.attr("href")
+            newLink = doc.selectFirst("a[href*='filmapik'], a.cta-button")?.attr("href")
         }
         
         if (!newLink.isNullOrBlank() && 
