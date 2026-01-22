@@ -28,7 +28,7 @@ private suspend fun updateToLatestDomain() {
         }
         
         if (!newLink.isNullOrBlank() && 
-     //00       newLink.contains("filmapik") && 
+    //       newLink.contains("filmapik") //&& 
             !newLink.contains("filmapik.to") //&& 
    //         newLink.startsWith("https://")
                 ) {
