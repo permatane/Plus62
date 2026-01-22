@@ -59,12 +59,12 @@ class Fufafilm : MainAPI() {
 				"category/drakor/page/%d/" to "Drama Korea",
 				"category/drachin/page/%d/" to "Drama China",
 				"eps/page/%d" to "Drama Episode",
-				"category/philippines-semi/page/%d/" to "Semi Philippine",
-				"category/korean-semi/page/%d/" to "Semi Korea",
-				"category/film-semi/page/%d/" to "Film Semi",
-                "category/jav-sub-indo/page/%d/" to "JAV Sub Indo 18+",
-                "category/western-film/page/%d/" to "Barat 18+",
-				"category/indo-18/page/%d/" to "Indo 18+"
+			//	"category/philippines-semi/page/%d/" to "Semi Philippine",
+			//	"category/korean-semi/page/%d/" to "Semi Korea",
+			//	"category/film-semi/page/%d/" to "Film Semi",
+            //   "category/jav-sub-indo/page/%d/" to "JAV Sub Indo 18+",
+            //   "category/western-film/page/%d/" to "Barat 18+",
+			// 	"category/indo-18/page/%d/" to "Indo 18+"
             )
 			
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToStreamingDomain()
