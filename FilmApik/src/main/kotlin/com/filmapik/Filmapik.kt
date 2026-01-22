@@ -17,20 +17,7 @@ class Filmapik : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-   private suspend fun updateDomain() {
-        if (!mainUrl.contains("filmapik.to")) return
 
-        val doc = app.get(mainUrl, timeout = 30).document
-
-        // Ambil href dari tombol CTA (a.cta-button.green-button dari HTML landing)
-        val ctaButton = doc.selectFirst("a.cta-button.green-button")
-        val newUrl = ctaButton?.attr("href")?.trim()
-
-        if (!newUrl.isNullOrBlank() && newUrl.contains("filmapik")) {
-            mainUrl = newUrl.substringBeforeLast("/", "").substringBefore("?")
-        }
-   }
-   
 
     
     override val mainPage = mainPageOf(
@@ -41,7 +28,7 @@ class Filmapik : MainAPI() {
         "category/romance/page/%d/" to "Romance"
     )
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateDomain()
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { 
         val url = "$mainUrl/${request.data.format(page)}"
         val document = app.get(url).document
         val items = document.select("div.items.normal article.item").mapNotNull { it.toSearchResult() }
