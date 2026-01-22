@@ -11,11 +11,22 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
 class Filmapik : MainAPI() {
-    override var mainUrl = "https://filmapik.singles"
-    override var name = "FilmApik🎃"
+    override var mainUrl = "https://filmapik.to"
+    override var name = "FilmApik"
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
+
+    private suspend fun updateToLatestDomain() {
+        if (mainUrl.contains("filmapik.to")) {
+            val doc = app.get(mainUrl).document
+            // Cari link domain baru 
+            val newLink = doc.selectFirst("a[href*='filmapik']:not([href*='filmapik.to']), strong a, p a[href^='https://']")?.attr("href")
+            if (!newLink.isNullOrBlank() && newLink.contains("filmapik")) {
+                mainUrl = newLink.substringBeforeLast("/", "").substringBefore("?")
+            }
+        }
+    }
 
     override val mainPage = mainPageOf(
         "category/box-office/page/%d/" to "Box Office",
@@ -25,7 +36,7 @@ class Filmapik : MainAPI() {
         "category/romance/page/%d/" to "Romance"
     )
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToLatestDomain()
         val url = "$mainUrl/${request.data.format(page)}"
         val document = app.get(url).document
         val items = document.select("div.items.normal article.item").mapNotNull { it.toSearchResult() }
