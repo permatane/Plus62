@@ -21,7 +21,7 @@ class Fufafilm : MainAPI() {
     }
     override var mainUrl = "https://fufafilm.sbs"
     private var directUrl: String? = null
-    override var name = "Layar Kaca 21"
+    override var name = "FufaFilm Layar Kaca "
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes =
@@ -55,7 +55,7 @@ class Fufafilm : MainAPI() {
                 "category/superhero/page/%d/" to "Superhero",
             )
 			
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToLatestDomain()
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToActiveDomain()
     context?.let { StarPopupHelper.showStarPopupIfNeeded(it) }
     val data = request.data.format(page)
     val document = app.get("$mainUrl/$data").document
