@@ -11,12 +11,31 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
 class Filmapik : MainAPI() {
-    override var mainUrl = "https://filmapik.fitness"
+    override var mainUrl = "https://filmapik.to"
     override var name = "FilmApik"
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
+private suspend fun updateToLatestDomain() {
+    if (mainUrl.contains("filmapik.to")) {
+        val doc = app.get(mainUrl, timeout = 30).document
+        var newLink = doc.selectFirst("a:contains(KE HALAMAN FILMAPIK), a.cta-button.green-button")?.attr("href")
+        
+        // fallback ke link filmapik baru
+        if (newLink.isNullOrBlank()) {
+            newLink = doc.selectFirst("a[href*='filmapik'], a.green-button, a.cta-button")?.attr("href")
+        }
+        
+        if (!newLink.isNullOrBlank() && 
+            newLink.contains("filmapik") && 
+            !newLink.contains("filmapik.to") && 
+            newLink.startsWith("https://")) {
+            
+            mainUrl = newLink.substringBeforeLast("/", "").substringBefore("?")
+        }
+    }
+}    
 
 
     
@@ -28,7 +47,7 @@ class Filmapik : MainAPI() {
         "category/romance/page/%d/" to "Romance"
     )
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { 
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToLatestDomain()
         val url = "$mainUrl/${request.data.format(page)}"
         val document = app.get(url).document
         val items = document.select("div.items.normal article.item").mapNotNull { it.toSearchResult() }
@@ -49,7 +68,7 @@ class Filmapik : MainAPI() {
         }
     }
 
-    override suspend fun search(query: String): List<SearchResponse> {
+    override suspend fun search(query: String): List<SearchResponse> { updateToLatestDomain()
         val document = app.get("$mainUrl?s=$query&post_type[]=post&post_type[]=tv").document
         return document.select("article.item").mapNotNull { it.toSearchResult() }
     }
@@ -63,7 +82,7 @@ class Filmapik : MainAPI() {
         return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = poster }
     }
 
-    override suspend fun load(url: String): LoadResponse {
+    override suspend fun load(url: String): LoadResponse { updateToLatestDomain()
         val document = app.get(url).document
         val title = document.selectFirst("h1[itemprop=name], .sheader h1, .sheader h2")?.text()?.trim()
             ?: document.selectFirst("#info h2")?.text()?.trim() ?: ""
