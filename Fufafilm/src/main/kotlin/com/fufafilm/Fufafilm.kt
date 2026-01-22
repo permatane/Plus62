@@ -52,19 +52,19 @@ class Fufafilm : MainAPI() {
 
     override val mainPage =
             mainPageOf(
-				https://onlydood.click/category/film/
                 "category/film/page/%d/" to "Semua Film",
-				"country/usa/" to "Bioskop Hollywood"
+				"country/usa/" to "Bioskop Hollywood",
                 "country/indonesia/page/%d/" to "Bioskop Indonesia",
 				"tv/page/%d/" to "Series Unggulan",
 				"category/drakor/page/%d/" to "Drama Korea",
 				"category/drachin/page/%d/" to "Drama China",
 				"eps/page/%d" to "Drama Episode",
 				"category/philippines-semi/page/%d/" to "Semi Philippine",
-				"category/korean-semi/" to "Semi Korea"
-				"category/film-semi/" to "Film Semi"
-                "category/jav-sub-indo/" to "JAV Sub Indo",
-                "category/western-film/" to " Barat 18+
+				"category/korean-semi/" to "Semi Korea",
+				"category/film-semi/" to "Film Semi",
+                "category/jav-sub-indo/" to "JAV Sub Indo 18+",
+                "category/western-film/" to "Barat 18+",
+				"category/indo-18/" to "Indo 18+"
             )
 			
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToStreamingDomain()
