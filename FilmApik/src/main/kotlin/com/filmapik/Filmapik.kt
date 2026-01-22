@@ -19,13 +19,26 @@ class Filmapik : MainAPI() {
 
 private suspend fun updateToActiveDomain() {
         if (mainUrl.contains("filmapik.to")) {
-            val doc = app.get(mainUrl).document
-            // Selector spesifik untuk CTA green button dari HTML landing page
-            val ctaButton = doc.selectFirst("a.cta-button.green-button")
-            val activeLink = ctaButton?.attr("href")?.trim()
+            try {
+                val response = app.get(mainUrl, headers = headers, timeout = 30)
+                val doc = response.document
+                var activeLink = doc.selectFirst("a.cta-button.green-button")?.attr("href")
 
-            if (!activeLink.isNullOrBlank() && activeLink.contains("filmapik")) {
-                mainUrl = activeLink.substringBeforeLast("/", "").substringBefore("?")
+                // Fallback jika class berubah: cari link yang mengandung filmapik tapi bukan .to
+                if (activeLink.isNullOrBlank()) {
+                    activeLink = doc.select("a[href*='filmapik']")
+                        .firstOrNull { it.attr("href").contains("filmapik") && !it.attr("href").contains("filmapik.to") }
+                        ?.attr("href")
+                }
+
+                if (!activeLink.isNullOrBlank()) {
+                    mainUrl = activeLink.substringBeforeLast("/", "").substringBefore("?")
+                   Log.d("FILMAPIK", "Domain updated to: $mainUrl")
+                } else {
+                 Log.d("FILMAPIK", "Tidak menemukan CTA button atau link baru")
+                }
+            } catch (e: Exception) {
+                Log.e("FILMAPIK", "Gagal update domain: ${e.message}")
             }
         }
     }
