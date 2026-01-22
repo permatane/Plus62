@@ -19,14 +19,38 @@ class Fufafilm : MainAPI() {
     companion object {
         var context: android.content.Context? = null
     }
-    override var mainUrl = "https://fufafilm.com"
+    override var mainUrl = "https://fufafilm.sbs"
     private var directUrl: String? = null
-    override var name = "Fufafilm🍁"
+    override var name = "Fufafilm"
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes =
             setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
-    
+
+	private suspend fun updateToLatestDomain() {
+        if (!mainUrl.contains("fufafilm.sbs")) return  // Sudah update, skip
+
+        val doc = app.get(mainUrl, timeout = 30).document
+
+        // Prioritas 1: tombol CTA utama (pola umum: "Klik di sini", "Masuk", "Situs Baru")
+        var newLink = doc.selectFirst(
+            "a:contains(KLIK), a:contains(HALAMAN)"
+        )?.attr("href")
+
+        // Prioritas 2: link yang mengandung "fufafilm" tapi bukan domain lama
+        if (newLink.isNullOrBlank()) {
+            newLink = doc.selectFirst("a[href*='fufafilm'], a.cta, a.button, a.green-button")?.attr("href")
+        }
+
+        // Validasi: pastikan link baru valid
+        if (!newLink.isNullOrBlank() && 
+            newLink.contains("fufafilm") && 
+            !newLink.contains("fufafilm.sbs") && 
+            newLink.startsWith("https://")) {
+
+            mainUrl = newLink.substringBeforeLast("/", "").substringBefore("?")
+        }
+	}
 
     override val mainPage =
             mainPageOf(
@@ -38,8 +62,8 @@ class Fufafilm : MainAPI() {
                             "Animasi",
                 "category/superhero/page/%d/" to "Superhero",
             )
-
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+			
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToLatestDomain()
     context?.let { StarPopupHelper.showStarPopupIfNeeded(it) }
     val data = request.data.format(page)
     val document = app.get("$mainUrl/$data").document
