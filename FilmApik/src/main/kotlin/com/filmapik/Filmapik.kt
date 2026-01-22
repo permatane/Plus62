@@ -18,9 +18,8 @@ class Filmapik : MainAPI() {
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
 private suspend fun updateDomain() {
-        if (mainUrl.contains("filmapik.to")) return
-
-        val doc = app.get(mainUrl, timeout = 30).document
+        if (mainUrl.contains("filmapik.to")) {
+        val doc = app.get(mainUrl).document
         val link = doc.select("a")
             .firstOrNull { it.text().contains("KE HALAMAN FILMAPIK", ignoreCase = true) }
             ?.attr("href")
@@ -29,7 +28,7 @@ private suspend fun updateDomain() {
             mainUrl = link.substringBeforeLast("/", "").substringBefore("?")
         }
     }
-
+  }
     override val mainPage = mainPageOf(
         "category/box-office/page/%d/" to "Box Office",
         "tvshows/page/%d/" to "Serial Terbaru",
