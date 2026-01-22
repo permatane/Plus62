@@ -18,11 +18,11 @@ class Filmapik : MainAPI() {
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
 private suspend fun updateToActiveDomain() {
-if (mainUrl.contains("filmapik.to")) {
+        if (mainUrl.contains("filmapik.to")) {
             val doc = app.get(mainUrl).document
-            // Ambil href dari elemen yang sesuai dengan HTML landing page
-            val activeLink = doc.selectFirst("a.cta-button.green-button")?.attr("href")
-                ?: doc.selectFirst("a[href*='filmapik']")?.attr("href")
+            // Selector spesifik untuk CTA green button dari HTML landing page
+            val ctaButton = doc.selectFirst("a.cta-button.green-button")
+            val activeLink = ctaButton?.attr("href")?.trim()
 
             if (!activeLink.isNullOrBlank() && activeLink.contains("filmapik")) {
                 mainUrl = activeLink.substringBeforeLast("/", "").substringBefore("?")
