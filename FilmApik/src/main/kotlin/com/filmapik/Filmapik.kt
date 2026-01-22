@@ -1,4 +1,4 @@
-0package com.filmapik
+package com.filmapik
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
