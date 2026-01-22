@@ -19,7 +19,7 @@ class Fufafilm : MainAPI() {
     companion object {
         var context: android.content.Context? = null
     }
-    override var mainUrl = "https://onlydood.click"
+    override var mainUrl = "https://fufafilm.sbs"
     private var directUrl: String? = null
     override var name = "FufaFilm Layar Kaca "
     override val hasMainPage = true
@@ -34,22 +34,21 @@ class Fufafilm : MainAPI() {
     "Accept-Language" to "id-ID,id;q=0.9"
 )
 	
-	   private suspend fun updateToActiveDomain() {
+	    private suspend fun updateToStreamingDomain() {
+        // Hanya jalankan jika masih di landing page
         if (!mainUrl.contains("fufafilm.sbs")) return
-		   
-        val doc = app.get(mainUrl, headers = headers, timeout = 45).document
 
-        // Cari <a> yang teksnya mengandung "KE HALAMAN" atau tombol hijau utama
-        val ctaLink = doc.select("a")
-            .firstOrNull { a ->
-                a.text().contains("KE HALAMAN", ignoreCase = true) ||
-                a.hasClass("cta-button") || a.hasClass("green-button")
-            }?.attr("href")
+        val doc = app.get(mainUrl, timeout = 30).document
 
-        if (!ctaLink.isNullOrBlank() && ctaLink.startsWith("https://")) {
-            mainUrl = ctaLink.substringBeforeLast("/", "").substringBefore("?")
+        // Langsung ambil href dari tombol "KE HALAMAN Web LK21" (atau tombol hijau utama)
+        val buttonLink = doc.select("a")
+            .firstOrNull { a -> a.text().contains("KE HALAMAN", ignoreCase = true) || a.hasClass("cta-button") || a.hasClass("green-button") }
+            ?.attr("href")
+
+        if (!buttonLink.isNullOrBlank() && buttonLink.startsWith("https://")) {
+            mainUrl = buttonLink.substringBeforeLast("/", "").substringBefore("?")
         }
-	   }
+    }
 
     override val mainPage =
             mainPageOf(
@@ -62,7 +61,7 @@ class Fufafilm : MainAPI() {
                 "category/superhero/page/%d/" to "Superhero",
             )
 			
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToActiveDomain()
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToStreamingDomain()
     context?.let { StarPopupHelper.showStarPopupIfNeeded(it) }
     val data = request.data.format(page)
     val document = app.get("$mainUrl/$data").document
