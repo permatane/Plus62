@@ -27,9 +27,10 @@ class Ngefilm : MainAPI() {
 
     override val mainPage =
             mainPageOf(
-                "/page/%d/?s&search=advanced&post_type=movie&index&orderby&genre&movieyear&country&quality=" to
+       //         "/page/%d/?s&search=advanced&post_type=movie&index&orderby&genre&movieyear&country&quality=" to
                             "Movies Terbaru",
-                    "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=&movieyear=&country=&quality=" to
+                    "" to "Movies Terbaru",
+				    "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=&movieyear=&country=&quality=" to
                             "Series Terbaru",
                     "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=drakor&movieyear=&country=&quality=" to
                             "Series Korea",
