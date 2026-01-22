@@ -18,7 +18,7 @@ class Filmapik : MainAPI() {
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
 private suspend fun updateDomain() {
-        if (!mainUrl.contains("filmapik.to")) return
+        if (mainUrl.contains("filmapik.to")) return
 
         val doc = app.get(mainUrl, timeout = 30).document
         val link = doc.select("a")
