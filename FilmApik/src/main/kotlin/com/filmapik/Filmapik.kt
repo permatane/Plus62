@@ -17,30 +17,20 @@ class Filmapik : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-    private suspend fun updateDomain() {
+   private suspend fun updateDomain() {
         if (!mainUrl.contains("filmapik.to")) return
 
         val doc = app.get(mainUrl, timeout = 30).document
 
-        // Ambil container utama (div.container di HTML kamu)
-        val container = doc.selectFirst("div.container") ?: doc.body()
+        // Ambil href dari tombol CTA (a.cta-button.green-button dari HTML landing)
+        val ctaButton = doc.selectFirst("a.cta-button.green-button")
+        val newUrl = ctaButton?.attr("href")?.trim()
 
-        // Cari <a> di dalam container, prioritaskan tombol CTA (teks mengandung kata kunci umum tombol)
-        val ctaLink = container.select("a[href]")
-            .firstOrNull { a ->
-                val href = a.attr("href")
-                val text = a.text().trim().uppercase()
-
-                // Hanya ambil link yang kemungkinan tombol CTA
-                (text.contains("HALAMAN") || text.contains("KE") || text.contains("MASUK") ||
-                 text.contains("PORTAL") || text.contains("OFFICIAL") || text.contains("FILMAPIK")) &&
-                href.contains("filmapik") && !href.contains("filmapik.to") && href.startsWith("https://")
-            }?.attr("href")
-
-        if (!ctaLink.isNullOrBlank()) {
-            mainUrl = ctaLink.substringBeforeLast("/", "").substringBefore("?")
+        if (!newUrl.isNullOrBlank() && newUrl.contains("filmapik")) {
+            mainUrl = newUrl.substringBeforeLast("/", "").substringBefore("?")
         }
-    }
+   }
+   
 
     
     override val mainPage = mainPageOf(
