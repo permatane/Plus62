@@ -27,6 +27,10 @@ class Fufafilm : MainAPI() {
     override val supportedTypes =
             setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
+		private val BROWSER_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	
 	   private suspend fun updateToActiveDomain() {
         if (!mainUrl.contains("fufafilm.sbs")) return
 
