@@ -28,9 +28,9 @@ private suspend fun updateToLatestDomain() {
         }
         
         if (!newLink.isNullOrBlank() && 
-            newLink.contains("filmapik") && 
+   //         newLink.contains("filmapik") && 
             !newLink.contains("filmapik.to") && 
-            newLink.startsWith("https://")) {
+   //         newLink.startsWith("https://")) {
             
             mainUrl = newLink.substringBeforeLast("/", "").substringBefore("?")
         }
