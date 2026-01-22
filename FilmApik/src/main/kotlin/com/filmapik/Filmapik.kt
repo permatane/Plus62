@@ -17,13 +17,19 @@ class Filmapik : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-    private suspend fun updateToLatestDomain() {
+private suspend fun updateToLatestDomain() {
         if (mainUrl.contains("filmapik.to")) {
             val doc = app.get(mainUrl).document
-            // Cari link domain baru 
-            val newLink = doc.selectFirst("a[href*='filmapik']:not([href*='filmapik.to']), strong a, p a[href^='https://']")?.attr("href")
-            if (!newLink.isNullOrBlank() && newLink.contains("filmapik")) {
-                mainUrl = newLink.substringBeforeLast("/", "").substringBefore("?")
+
+            // Cari semua link yang mengarah ke domain filmapik.* (kecuali .to)
+            val activeLink = doc.select("a[href*='filmapik.']")
+                .firstOrNull { link ->
+                    val href = link.attr("href")
+                    href.contains("filmapik") && !href.contains("filmapik.to")
+                }?.attr("href")
+
+            if (!activeLink.isNullOrBlank()) {
+                mainUrl = activeLink.substringBeforeLast("/", "").substringBefore("?")
             }
         }
     }
