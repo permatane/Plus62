@@ -44,7 +44,7 @@ class Fufafilm : MainAPI() {
 
         // Validasi: pastikan link baru valid
         if (!newLink.isNullOrBlank() && 
-            newLink.contains("fufafilm") && 
+       //     newLink.contains("fufafilm") && 
             !newLink.contains("fufafilm.sbs") && 
             newLink.startsWith("https://")) {
 
