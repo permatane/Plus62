@@ -27,14 +27,17 @@ class Fufafilm : MainAPI() {
     override val supportedTypes =
             setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-		private val BROWSER_UA =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	val headers = mapOf(
+    "User-Agent" to "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+    "Referer" to mainUrl + "/",
+    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language" to "id-ID,id;q=0.9"
+)
 	
 	   private suspend fun updateToActiveDomain() {
         if (!mainUrl.contains("fufafilm.sbs")) return
-
-        val doc = app.get(mainUrl, timeout = 30).document
+		   
+        val doc = app.get(mainUrl, headers = headers, timeout = 45).document
 
         // Cari <a> yang teksnya mengandung "KE HALAMAN" atau tombol hijau utama
         val ctaLink = doc.select("a")
