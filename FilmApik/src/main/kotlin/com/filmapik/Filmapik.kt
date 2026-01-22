@@ -19,7 +19,7 @@ class Filmapik : MainAPI() {
 
 private suspend fun updateToLatestDomain() {
     if (mainUrl.contains("filmapik.to")) {
-        val doc = app.get(mainUrl, timeout = 30).document
+        val doc = app.get(mainUrl).document
         var newLink = doc.selectFirst("a:contains(KE HALAMAN FILMAPIK), a.cta-button.green-button")?.attr("href")
         
         // fallback ke link filmapik baru
@@ -28,7 +28,7 @@ private suspend fun updateToLatestDomain() {
         }
         
         if (!newLink.isNullOrBlank() && 
-    //       newLink.contains("filmapik") //&& 
+           newLink.contains("filmapik") && 
             !newLink.contains("filmapik.to") //&& 
    //         newLink.startsWith("https://")
                 ) {
