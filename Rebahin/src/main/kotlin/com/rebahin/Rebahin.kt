@@ -175,148 +175,98 @@ open class Rebahin : MainAPI() {
             }
         }
     }
-  
+
 override suspend fun loadLinks(
-    data: String,
-    isCasting: Boolean,
-    subtitleCallback: (SubtitleFile) -> Unit,
-    callback: (ExtractorLink) -> Unit
-): Boolean {
+            data: String,
+            isCasting: Boolean,
+            subtitleCallback: (SubtitleFile) -> Unit,
+            callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val sources = mutableListOf<String>()
 
-    val sources = mutableListOf<String>()
+        if (data.startsWith("http")) {
+            sources.add(data.trim())
+        } else {
+            // Fallback pola lama jika data adalah list
+            data.removeSurrounding("[", "]")
+                .split(",")
+                .map { it.trim().removeSurrounding("\"") }
+                .filter { it.isNotBlank() && it.startsWith("http") }
+                .forEach { sources.add(it) }
+        }
 
-    // 1. Data bisa single URL atau list URL (movie / series)
-    if (data.startsWith("http")) {
-        sources.add(data)
-    } else {
-        data.removeSurrounding("[", "]")
-            .split(",")
-            .map { it.trim().removeSurrounding("\"") }
-            .filter { it.startsWith("http") }
-            .forEach { sources.add(it) }
+        sources.amap { src ->
+            safeApiCall {
+                if (src.contains(mainServer) || src.contains("rebahin")) {
+                    invokeRebahinNewPlayer(src, subtitleCallback, callback)
+                } else {
+                    loadExtractor(src, directUrl ?: mainUrl, subtitleCallback, callback)
+                }
+            }
+        }
+
+        return sources.isNotEmpty()
     }
 
-    // 2. Tidak ada link → stop
-    if (sources.isEmpty()) return false
+    private suspend fun invokeRebahinNewPlayer(
+            url: String,
+            subCallback: (SubtitleFile) -> Unit,
+            sourceCallback: (ExtractorLink) -> Unit
+    ) {
+        val realUrl = fixUrl(url)
+        var response = app.get(realUrl, referer = directUrl ?: mainUrl, allowRedirects = true, timeout = 30)
 
-    // 3. Proses tiap source
-    sources.forEach { url ->
-        safeApiCall {
-            when {
-                // Rebahin new player (Player 1 & 2)
-                url.contains("rebahin") || url.contains("/play") -> {
-                    extractRebahinPlayer(
-                        url,
-                        subtitleCallback,
-                        callback
-                    )
-                }
+        // Ikuti redirect jika ada
+        if (response.isSuccessful && response.url.toString() != realUrl) {
+            response = app.get(response.url.toString(), referer = realUrl)
+        }
 
-                // Fallback ke extractor Cloudstream bawaan
-                else -> {
-                    loadExtractor(
-                        url,
-                        referer = directUrl ?: mainUrl,
-                        subtitleCallback,
-                        callback
-                    )
-                }
+        val doc = response.document
+        val html = doc.outerHtml()
+
+        // Extract m3u8 dari script (pola umum 2025+)
+        val m3u8Links = Regex("""(https?://[^\s"'<>]+\.m3u8)""").findAll(html).map { it.value }.toList() +
+                Regex("""["']?file["']?\s*[:=]\s*["']([^"']+\.m3u8)["']""").findAll(html).map { it.groupValues[1] } +
+                Regex("""["']?src["']?\s*[:=]\s*["']([^"']+\.m3u8)["']""").findAll(html).map { it.groupValues[1] }
+
+        m3u8Links.distinct().forEach { m3u8 ->
+            M3u8Helper.generateM3u8(
+                    name,
+                    m3u8,
+                    referer = realUrl,
+                    headers = mapOf("Origin" to mainServer, "Referer" to realUrl)
+            ).forEach(sourceCallback)
+        }
+
+        // Subtitle tracks
+        val tracksStr = Regex("""tracks\s*[:=]\s*(\[.+?\])""", RegexOption.DOT_MATCHES_ALL)
+                .find(html)?.groupValues?.get(1) ?: ""
+        tryParseJson<List<Tracks>>("[$tracksStr]")?.forEach { track ->
+            track.file?.takeIf { it.endsWith(".srt") || it.endsWith(".vtt") }?.let { file ->
+                subCallback(
+                        newSubtitleFile(
+                                getLanguage(track.label ?: "Default"),
+                                fixUrl(file)
+                        )
+                )
             }
         }
     }
 
-    return true
-}
+    private fun getLanguage(str: String): String {
+        return when {
+            str.contains("indonesia", true) || str.contains("bahasa", true) -> "Indonesian"
+            else -> str
+        }
+    }
 
     private fun getBaseUrl(url: String): String {
-    return try {
-        val uri = URI(url)
-        "${uri.scheme}://${uri.host}"
-    } catch (e: Exception) {
-        mainUrl
+        return URI(url).let { "${it.scheme}://${it.host}" }
     }
-}
 
-  
-private suspend fun extractRebahinPlayer(
-    url: String,
-    subtitleCallback: (SubtitleFile) -> Unit,
-    callback: (ExtractorLink) -> Unit
-) {
-    // 1. Halaman /play
-    val playDoc = app.get(
-        fixUrl(url),
-        referer = directUrl ?: mainUrl
-    ).document
-
-    // 2. iframe iembed
-    val iframeUrl = playDoc.selectFirst("iframe#iframe-embed")
-        ?.attr("src")
-        ?.let { fixUrl(it) }
-        ?: return
-
-    // 3. Decode source base64
-    val encoded = iframeUrl.substringAfter("source=", "")
-    if (encoded.isBlank()) return
-
-    val embedUrl = base64Decode(encoded)
-
-    // 4. Request embed server (JWPlayer)
-    val embedResp = app.get(
-        embedUrl,
-        referer = iframeUrl,
-        headers = mapOf(
-            "Referer" to iframeUrl,
-            "Origin" to getBaseUrl(embedUrl)
-        )
+    private data class Tracks(
+            @JsonProperty("file") val file: String? = null,
+            @JsonProperty("label") val label: String? = null,
+            @JsonProperty("kind") val kind: String? = null
     )
-
-    val html = embedResp.text
-
-    // 5. Extract m3u8
-    val m3u8Links = mutableSetOf<String>()
-
-    Regex("""file\s*:\s*["']([^"']+\.m3u8)""")
-        .findAll(html)
-        .forEach { m3u8Links.add(it.groupValues[1]) }
-
-    Regex(
-        """sources\s*:\s*\[\s*\{[^}]*file\s*:\s*["']([^"']+\.m3u8)""",
-        RegexOption.DOT_MATCHES_ALL
-    ).findAll(html).forEach {
-        m3u8Links.add(it.groupValues[1])
-    }
-
-    // 6. Kirim ke Cloudstream
-    m3u8Links.forEach { m3u8 ->
-        M3u8Helper.generateM3u8(
-            name,
-            fixUrl(m3u8),
-            referer = embedUrl,
-            headers = mapOf(
-                "Referer" to embedUrl,
-                "Origin" to getBaseUrl(embedUrl)
-            )
-        ).forEach(callback)
-    }
-
-    // 7. Subtitle JWPlayer
-    Regex("""tracks\s*:\s*(\[[^\]]+])""", RegexOption.DOT_MATCHES_ALL)
-        .find(html)
-        ?.groupValues
-        ?.get(1)
-        ?.let { json ->
-            tryParseJson<List<Tracks>>(json)?.forEach { track ->
-                track.file?.let {
-                    subtitleCallback(
-                        SubtitleFile(
-                            track.label ?: "Subtitle",
-                            fixUrl(it)
-                        )
-                    )
-                }
-            }
-        }
-}
-
 }
