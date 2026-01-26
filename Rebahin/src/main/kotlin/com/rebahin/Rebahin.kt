@@ -177,96 +177,55 @@ open class Rebahin : MainAPI() {
     }
 
 override suspend fun loadLinks(
-            data: String,
-            isCasting: Boolean,
-            subtitleCallback: (SubtitleFile) -> Unit,
-            callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        val sources = mutableListOf<String>()
+    data: String,
+    isCasting: Boolean,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+): Boolean {
 
-        if (data.startsWith("http")) {
-            sources.add(data.trim())
-        } else {
-            // Fallback pola lama jika data adalah list
-            data.removeSurrounding("[", "]")
-                .split(",")
-                .map { it.trim().removeSurrounding("\"") }
-                .filter { it.isNotBlank() && it.startsWith("http") }
-                .forEach { sources.add(it) }
-        }
+    val sources = mutableListOf<String>()
 
-        sources.amap { src ->
-            safeApiCall {
-                if (src.contains(mainServer) || src.contains("rebahin")) {
-                    invokeRebahinNewPlayer(src, subtitleCallback, callback)
-                } else {
-                    loadExtractor(src, directUrl ?: mainUrl, subtitleCallback, callback)
+    // 1. Data bisa single URL atau list URL (movie / series)
+    if (data.startsWith("http")) {
+        sources.add(data)
+    } else {
+        data.removeSurrounding("[", "]")
+            .split(",")
+            .map { it.trim().removeSurrounding("\"") }
+            .filter { it.startsWith("http") }
+            .forEach { sources.add(it) }
+    }
+
+    // 2. Tidak ada link → stop
+    if (sources.isEmpty()) return false
+
+    // 3. Proses tiap source
+    sources.forEach { url ->
+        safeApiCall {
+            when {
+                // Rebahin new player (Player 1 & 2)
+                url.contains("rebahin") || url.contains("/play") -> {
+                    extractRebahinPlayer(
+                        url,
+                        subtitleCallback,
+                        callback
+                    )
+                }
+
+                // Fallback ke extractor Cloudstream bawaan
+                else -> {
+                    loadExtractor(
+                        url,
+                        referer = directUrl ?: mainUrl,
+                        subtitleCallback,
+                        callback
+                    )
                 }
             }
         }
-
-        return sources.isNotEmpty()
     }
 
-    private suspend fun invokeRebahinNewPlayer(
-            url: String,
-            subCallback: (SubtitleFile) -> Unit,
-            sourceCallback: (ExtractorLink) -> Unit
-    ) {
-        val realUrl = fixUrl(url)
-        var response = app.get(realUrl, referer = directUrl ?: mainUrl, allowRedirects = true, timeout = 30)
+    return true
+}
 
-        // Ikuti redirect jika ada
-        if (response.isSuccessful && response.url.toString() != realUrl) {
-            response = app.get(response.url.toString(), referer = realUrl)
-        }
-
-        val doc = response.document
-        val html = doc.outerHtml()
-
-        // Extract m3u8 dari script (pola umum 2025+)
-        val m3u8Links = Regex("""(https?://[^\s"'<>]+\.m3u8)""").findAll(html).map { it.value }.toList() +
-                Regex("""["']?file["']?\s*[:=]\s*["']([^"']+\.m3u8)["']""").findAll(html).map { it.groupValues[1] } +
-                Regex("""["']?src["']?\s*[:=]\s*["']([^"']+\.m3u8)["']""").findAll(html).map { it.groupValues[1] }
-
-        m3u8Links.distinct().forEach { m3u8 ->
-            M3u8Helper.generateM3u8(
-                    name,
-                    m3u8,
-                    referer = realUrl,
-                    headers = mapOf("Origin" to mainServer, "Referer" to realUrl)
-            ).forEach(sourceCallback)
-        }
-
-        // Subtitle tracks
-        val tracksStr = Regex("""tracks\s*[:=]\s*(\[.+?\])""", RegexOption.DOT_MATCHES_ALL)
-                .find(html)?.groupValues?.get(1) ?: ""
-        tryParseJson<List<Tracks>>("[$tracksStr]")?.forEach { track ->
-            track.file?.takeIf { it.endsWith(".srt") || it.endsWith(".vtt") }?.let { file ->
-                subCallback(
-                        newSubtitleFile(
-                                getLanguage(track.label ?: "Default"),
-                                fixUrl(file)
-                        )
-                )
-            }
-        }
-    }
-
-    private fun getLanguage(str: String): String {
-        return when {
-            str.contains("indonesia", true) || str.contains("bahasa", true) -> "Indonesian"
-            else -> str
-        }
-    }
-
-    private fun getBaseUrl(url: String): String {
-        return URI(url).let { "${it.scheme}://${it.host}" }
-    }
-
-    private data class Tracks(
-            @JsonProperty("file") val file: String? = null,
-            @JsonProperty("label") val label: String? = null,
-            @JsonProperty("kind") val kind: String? = null
-    )
 }
