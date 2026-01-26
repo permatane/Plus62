@@ -56,13 +56,13 @@ open class SoraStream : TmdbProvider() {
         private const val apiKey = "b030404650f279792a8d3287232358e3"
 
         /** ALL SOURCES */
-        const val gomoviesAPI = "https://new31.ngefilm.site/"
+        const val gomoviesAPI = "https://gomovies-online.cam/"
         const val idlixAPI = "https://tv6.idlixku.com"
         const val vidsrcccAPI = "https://vidsrc.cc"
         const val vidSrcAPI = "https://vidsrc.net"
         const val xprimeAPI = "https://backend.xprime.tv"
         const val watchSomuchAPI = "https://watchsomuch.tv"
-        const val mappleAPI = "https://api.inmoviebox.com"
+        const val mappleAPI = "https://mapple.uk"
         const val vidlinkAPI = "https://vidlink.pro"
         const val vidfastAPI = "https://vidfast.pro"
         const val wyzieAPI = "https://sub.wyzie.ru"
