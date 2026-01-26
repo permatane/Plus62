@@ -175,7 +175,7 @@ open class Rebahin : MainAPI() {
             }
         }
     }
-
+  
 override suspend fun loadLinks(
     data: String,
     isCasting: Boolean,
@@ -226,6 +226,97 @@ override suspend fun loadLinks(
     }
 
     return true
+}
+
+    private fun getBaseUrl(url: String): String {
+    return try {
+        val uri = URI(url)
+        "${uri.scheme}://${uri.host}"
+    } catch (e: Exception) {
+        mainUrl
+    }
+}
+
+  
+private suspend fun extractRebahinPlayer(
+    url: String,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+) {
+    // 1. Halaman /play
+    val playDoc = app.get(
+        fixUrl(url),
+        referer = directUrl ?: mainUrl
+    ).document
+
+    // 2. iframe iembed
+    val iframeUrl = playDoc.selectFirst("iframe#iframe-embed")
+        ?.attr("src")
+        ?.let { fixUrl(it) }
+        ?: return
+
+    // 3. Decode source base64
+    val encoded = iframeUrl.substringAfter("source=", "")
+    if (encoded.isBlank()) return
+
+    val embedUrl = base64Decode(encoded)
+
+    // 4. Request embed server (JWPlayer)
+    val embedResp = app.get(
+        embedUrl,
+        referer = iframeUrl,
+        headers = mapOf(
+            "Referer" to iframeUrl,
+            "Origin" to getBaseUrl(embedUrl)
+        )
+    )
+
+    val html = embedResp.text
+
+    // 5. Extract m3u8
+    val m3u8Links = mutableSetOf<String>()
+
+    Regex("""file\s*:\s*["']([^"']+\.m3u8)""")
+        .findAll(html)
+        .forEach { m3u8Links.add(it.groupValues[1]) }
+
+    Regex(
+        """sources\s*:\s*\[\s*\{[^}]*file\s*:\s*["']([^"']+\.m3u8)""",
+        RegexOption.DOT_MATCHES_ALL
+    ).findAll(html).forEach {
+        m3u8Links.add(it.groupValues[1])
+    }
+
+    // 6. Kirim ke Cloudstream
+    m3u8Links.forEach { m3u8 ->
+        M3u8Helper.generateM3u8(
+            name,
+            fixUrl(m3u8),
+            referer = embedUrl,
+            headers = mapOf(
+                "Referer" to embedUrl,
+                "Origin" to getBaseUrl(embedUrl)
+            )
+        ).forEach(callback)
+    }
+
+    // 7. Subtitle JWPlayer
+    Regex("""tracks\s*:\s*(\[[^\]]+])""", RegexOption.DOT_MATCHES_ALL)
+        .find(html)
+        ?.groupValues
+        ?.get(1)
+        ?.let { json ->
+            tryParseJson<List<Tracks>>(json)?.forEach { track ->
+                track.file?.let {
+                    subtitleCallback(
+                        SubtitleFile(
+                            track.label ?: "Subtitle",
+                            fixUrl(it)
+                        )
+                    )
+                }
+            }
+        }
 }
 
 }
