@@ -6,7 +6,7 @@ import com.lagradost.cloudstream3.utils.*
 import org.jsoup.Jsoup
 
 open class Anichin : MainAPI() {
-    override var mainUrl              = "https://anichin.watch/"
+    override var mainUrl              = "https://anichin.moe"
 //    private var directUrl: String? = null
     override var name                 = "Anichin"
     override val hasMainPage          = true
@@ -15,11 +15,17 @@ open class Anichin : MainAPI() {
     override val supportedTypes       = setOf(TvType.Movie,TvType.Anime)
 
     override val mainPage = mainPageOf(
-        "seri/?status=ongoing&order=update" to "Update Terbaru",
-        "seri/?status=ongoing&order&order=popular" to "Paling Populer",
-        "seri/?" to "Donghua",
-        "seri/?status=&type=movie&page=" to "Movies",
-        "seri/?status=completed&order=update" to "Completed"
+        "anime/?order=update" to "Rilisan Terbaru",
+        "/anime/?status=&type=&order=popular" to "Paling Populer"
+        "anime/?status=ongoing&order=update" to "Series Ongoing",
+        "anime/?status=completed&order=update" to "Series Completed",
+        "anime/?status=hiatus&order=update" to "Series Drop/Hiatus",
+        "anime/?type=movie&order=update" to "Movie"        
+  //      "seri/?status=ongoing&order=update" to "Update Terbaru",
+  //      "seri/?status=ongoing&order&order=popular" to "Paling Populer",
+  //      "seri/?" to "Donghua",
+  //      "seri/?status=&type=movie&page=" to "Movies",
+  //      "seri/?status=completed&order=update" to "Completed"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
