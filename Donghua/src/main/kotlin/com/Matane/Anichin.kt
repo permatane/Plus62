@@ -6,7 +6,7 @@ import com.lagradost.cloudstream3.utils.*
 import org.jsoup.Jsoup
 
 open class Anichin : MainAPI() {
-    override var mainUrl              = "https://anichin.cafe"
+    override var mainUrl              = "https://anichin.moe"
 //    private var directUrl: String? = null
     override var name                 = "Anichin"
     override val hasMainPage          = true
