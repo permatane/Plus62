@@ -16,7 +16,7 @@ open class Anichin : MainAPI() {
 
     override val mainPage = mainPageOf(
         "anime/?order=update" to "Rilisan Terbaru",
-        "/anime/?status=&type=&order=popular" to "Paling Populer"
+        "/anime/?status=&type=&order=popular" to "Paling Populer",
         "anime/?status=ongoing&order=update" to "Series Ongoing",
         "anime/?status=completed&order=update" to "Series Completed",
         "anime/?status=hiatus&order=update" to "Series Drop/Hiatus",
