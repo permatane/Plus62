@@ -11,7 +11,7 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
 class Filmapik : MainAPI() {
-    override var mainUrl = "https://filmapik.fitness"
+    override var mainUrl = "https://filmapik.to"
     private var directUrl: String? = null
     override var name = "FilmApik"
     override val hasMainPage = true
@@ -21,23 +21,19 @@ class Filmapik : MainAPI() {
 private suspend fun updateToLatestDomain() {
     if (mainUrl.contains("filmapik.to")) {
         val doc = app.get(mainUrl).document
-        var newLink = doc.selectFirst("a:contains(KE HALAMAN FILMAPIK), a.cta-button")?.attr("href")
+        val button = document.select("a:contains(KE HALAMAN FILMAPIK)").first()
         
-        // fallback ke link filmapik baru
-        if (newLink.isNullOrBlank()) {
-            newLink = doc.selectFirst("a[href*='filmapik'], a.cta-button")?.attr("href")
-        }
-        
-        if (!newLink.isNullOrBlank() && 
-           newLink.contains("filmapik") && 
-            !newLink.contains("filmapik.to") //&& 
-   //         newLink.startsWith("https://")
-                ) {
+        return if (button != null) {
+            // Ambil href dari tombol tersebut
+            val redirectUrl = button.attr("href")
             
-            mainUrl = newLink.substringBeforeLast("/", "").substringBefore("?")
+            // Jika linknya relatif, gabungkan dengan mainUrl
+            fixUrl(redirectUrl)
+        } else {
+            // Jika tidak ketemu, kembalikan url asal atau cari script redirect
+            url
         }
     }
-}    
 
 
     
