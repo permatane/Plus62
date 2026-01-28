@@ -136,27 +136,66 @@ class Filmapik : MainAPI() {
         }
     }
 
-    override suspend fun loadLinks(
+override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        // 1. Ambil dokumen dari halaman film/episode
+        // Pastikan 'data' (URL) sudah menggunakan domain terbaru
         val doc = app.get(data).document
-        doc.select("li.dooplay_player_option[data-url]").forEach { el ->
-            val iframeUrl = el.attr("data-url").trim()
+
+        // 2. Ambil semua opsi player (li.dooplay_player_option)
+        // Sesuai HTML Anda: data-url berisi link stream (byseqekaho, efek.stream, short.icu)
+        doc.select("li.dooplay_player_option").forEach { el ->
+            val type = el.attr("data-type")
+            if (type == "trailer") return@forEach // Lewati trailer
+
+            var iframeUrl = el.attr("data-url").trim()
+            
+            // Jaga-jaga jika sewaktu-waktu web berubah menggunakan sistem AJAX (nume/post)
+            if (iframeUrl.isEmpty()) {
+                val post = el.attr("data-post")
+                val nume = el.attr("data-nume")
+                val currentDomain = getActiveDomain() // Ambil domain dinamis terbaru
+
+                val ajaxRes = app.post(
+                    "$currentDomain/wp-admin/admin-ajax.php",
+                    data = mapOf(
+                        "action" to "doo_player_ajax",
+                        "post" to post,
+                        "nume" to nume,
+                        "type" to type
+                    ),
+                    headers = mapOf("Referer" to data, "X-Requested-With" to "XMLHttpRequest")
+                ).text
+                
+                iframeUrl = Regex("""(?<=embed_url":")(?<url>.*?)(?=")""").find(ajaxRes)?.groupValues?.get(1)
+                    ?.replace("\\/", "/") ?: ""
+            }
+
+            // 3. Eksekusi Extractor jika link ditemukan
             if (iframeUrl.isNotEmpty()) {
-                loadExtractor(iframeUrl, data, subtitleCallback, callback)
+                // Bersihkan URL jika protokolnya relatif (//domain.com)
+                val finalUrl = if (iframeUrl.startsWith("//")) "https:$iframeUrl" else iframeUrl
+                
+                // loadExtractor akan mencocokkan link (short.icu, efek.stream, dll) 
+                // dengan modul extractor yang terinstall di CloudStream
+                loadExtractor(finalUrl, data, subtitleCallback, callback)
             }
         }
+
         return true
     }
-
-    private fun String?.fixImageQuality(): String? = this?.replace(Regex("(-\\d*x\\d*)"), "")
-
-    private fun fixUrlCustom(url: String, baseUrl: String): String {
+        private fun fixUrl(url: String): String {
         if (url.startsWith("http")) return url
+        
+        // Gunakan baseRealUrl (domain terbaru) jika tersedia, 
+        // jika belum tersedia gunakan mainUrl sebagai basis awal
+        val baseUrl = baseRealUrl ?: mainUrl
         val cleanBase = baseUrl.removeSuffix("/")
+        
         return if (url.startsWith("/")) "$cleanBase$url" else "$cleanBase/$url"
     }
 }
