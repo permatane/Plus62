@@ -15,22 +15,27 @@ class Fufafilm : MainAPI() {
         var context: android.content.Context? = null
     }
 
+    // Gerbang utama (Landing Page Blogger)
     override var mainUrl = "https://www.fufafilm.sbs"
     override var name = "FufaFilm LK21"
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
+    // Variabel untuk menyimpan domain asli hasil klik otomatis
     private var baseRealUrl: String? = null
 
-
+    /**
+     * MENGAMBIL DOMAIN AKTIF (Sama seperti logika Filmapik)
+     * Mencari tombol "KE HALAMAN Web LK21" di landing page.
+     */
     private suspend fun getActiveDomain(): String {
         baseRealUrl?.let { return it }
         return try {
             val response = app.get(mainUrl, timeout = 15)
             val doc = response.document
             
-            // Mencari href dari tombol "KE HALAMAN Web LK21" sesuai HTML yang Anda berikan
+            // Selector berdasarkan cuplikan HTML landing page fufafilm
             val targetLink = doc.selectFirst("a.green-button, a:contains(KE HALAMAN Web LK21)")?.attr("href")
 
             if (!targetLink.isNullOrBlank()) {
@@ -59,6 +64,7 @@ class Fufafilm : MainAPI() {
         val url = "$currentDomain/${request.data.format(page)}"
         
         val document = app.get(url).document
+        // Mendukung berbagai class pembungkus film (item atau has-post-thumbnail)
         val home = document.select("article.item, article.has-post-thumbnail").mapNotNull { 
             it.toSearchResult(currentDomain) 
         }
@@ -74,6 +80,7 @@ class Fufafilm : MainAPI() {
         val ratingText = this.selectFirst("div.gmr-rating-item")?.ownText()?.trim()
         val quality = this.select("div.gmr-qual, div.gmr-quality-item > a").text().trim()
 
+        // Jika tidak ada label quality, anggap sebagai Series
         return if (quality.isEmpty() && !href.contains("/movie/")) {
             newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
                 this.posterUrl = posterUrl
@@ -106,6 +113,7 @@ class Fufafilm : MainAPI() {
         val rating = document.selectFirst("span[itemprop=ratingValue], .gmr-meta-rating span")?.text()?.trim()
         val tags = document.select("strong:contains(Genre) ~ a, .gmr-moviedata a[rel='category tag']").eachText()
 
+        // Deteksi apakah ini TV Series
         if (url.contains("/tv/") || document.selectFirst("div.gmr-listseries") != null) {
             val episodes = document.select("div.gmr-listseries a.button").mapIndexedNotNull { index, it ->
                 newEpisode(fixUrl(it.attr("href"), currentDomain)) {
@@ -137,27 +145,46 @@ class Fufafilm : MainAPI() {
     ): Boolean {
         val currentDomain = getActiveDomain()
         val document = app.get(data).document
-        val id = document.selectFirst("div#muvipro_player_content_id")?.attr("data-id")
 
+        // STRATEGI 1: AJAX Player (Muvipro/Dooplay Standard)
+        val id = document.selectFirst("div#muvipro_player_content_id")?.attr("data-id")
         if (!id.isNullOrEmpty()) {
             document.select("ul.muvipro-player-tabs li a").forEach { ele ->
-                val server = app.post(
-                    "$currentDomain/wp-admin/admin-ajax.php",
-                    data = mapOf(
-                        "action" to "muvipro_player_content",
-                        "tab" to ele.attr("href").replace("#", ""),
-                        "post_id" to id
-                    ),
-                    headers = mapOf("Referer" to data, "X-Requested-With" to "XMLHttpRequest")
-                ).document.select("iframe").attr("src").let { httpsify(it) }
-
-                if (server.isNotEmpty()) {
-                    loadExtractor(server, data, subtitleCallback, callback)
-                }
+                val tabId = ele.attr("href").replace("#", "")
+                try {
+                    val ajaxRes = app.post(
+                        "$currentDomain/wp-admin/admin-ajax.php",
+                        data = mapOf(
+                            "action" to "muvipro_player_content",
+                            "tab" to tabId,
+                            "post_id" to id
+                        ),
+                        headers = mapOf(
+                            "Referer" to data,
+                            "X-Requested-With" to "XMLHttpRequest" // Penting agar tidak diblokir
+                        )
+                    ).document
+                    val iframeSrc = ajaxRes.select("iframe").attr("src").let { httpsify(it) }
+                    if (iframeSrc.isNotEmpty()) {
+                        loadExtractor(iframeSrc, data, subtitleCallback, callback)
+                    }
+                } catch (e: Exception) { }
             }
         }
+
+        // STRATEGI 2: Link Download (Sangat stabil untuk Filemoon/Buzzheavier)
+        document.select("div#down a.myButton").forEach { button ->
+            val downloadHref = button.attr("href")
+            if (downloadHref.isNotEmpty()) {
+                val finalUrl = if (downloadHref.startsWith("//")) "https:$downloadHref" else downloadHref
+                loadExtractor(finalUrl, data, subtitleCallback, callback)
+            }
+        }
+
         return true
     }
+
+    // --- Helper Functions ---
 
     private fun Element.getImageAttr(): String = when {
         this.hasAttr("data-src") -> this.attr("abs:data-src")
@@ -168,6 +195,7 @@ class Fufafilm : MainAPI() {
     private fun String?.fixImageQuality(): String? = this?.replace(Regex("(-\\d*x\\d*)"), "")
 
     private fun fixUrl(url: String, baseUrl: String): String {
+        if (url.isEmpty()) return ""
         if (url.startsWith("http")) return url
         val cleanBase = baseUrl.removeSuffix("/")
         return if (url.startsWith("/")) "$cleanBase$url" else "$cleanBase/$url"
