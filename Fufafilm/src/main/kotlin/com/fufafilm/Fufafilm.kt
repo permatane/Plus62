@@ -15,43 +15,34 @@ class Fufafilm : MainAPI() {
         var context: android.content.Context? = null
     }
 
-    // URL Landing Page sebagai gerbang utama
     override var mainUrl = "https://www.fufafilm.sbs"
-    // Variabel dinamis untuk menampung domain streaming aktif
-    private var streamingUrl: String? = null
-    
     override var name = "FufaFilm LK21"
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-    private val headers = mapOf(
-        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Referer" to "$mainUrl/",
-        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
-    )
+    private var baseRealUrl: String? = null
 
-    /**
-     * Mendeteksi domain streaming aktif dengan mengklik tombol landing page
-     */
-    private suspend fun updateToStreamingDomain() {
-        if (streamingUrl != null) return
 
-        try {
-            val response = app.get(mainUrl, headers = headers, timeout = 20).document
-            // Mencari href dari tombol hijau utama berdasarkan HTML Anda
-            val targetButton = response.selectFirst("a.green-button, a:contains(KE HALAMAN Web LK21)")
-                ?: response.selectFirst("a.cta-button")
+    private suspend fun getActiveDomain(): String {
+        baseRealUrl?.let { return it }
+        return try {
+            val response = app.get(mainUrl, timeout = 15)
+            val doc = response.document
             
-            val href = targetButton?.attr("href")
+            // Mencari href dari tombol "KE HALAMAN Web LK21" sesuai HTML yang Anda berikan
+            val targetLink = doc.selectFirst("a.green-button, a:contains(KE HALAMAN Web LK21)")?.attr("href")
 
-            if (!href.isNullOrBlank() && href.startsWith("https")) {
-                // Ekstrak domain utama saja
-                val uri = URI(href)
-                streamingUrl = "${uri.scheme}://${uri.host}"
+            if (!targetLink.isNullOrBlank()) {
+                val uri = URI(targetLink)
+                val cleanUrl = "${uri.scheme}://${uri.host}"
+                baseRealUrl = cleanUrl
+                cleanUrl
+            } else {
+                mainUrl
             }
         } catch (e: Exception) {
-            streamingUrl = mainUrl
+            mainUrl
         }
     }
 
@@ -64,24 +55,26 @@ class Fufafilm : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        updateToStreamingDomain()
-        val currentDomain = streamingUrl ?: mainUrl
-        val data = request.data.format(page)
+        val currentDomain = getActiveDomain()
+        val url = "$currentDomain/${request.data.format(page)}"
         
-        val document = app.get("$currentDomain/$data", headers = headers).document
-        val home = document.select("article.item").mapNotNull { it.toSearchResult() }
+        val document = app.get(url).document
+        val home = document.select("article.item, article.has-post-thumbnail").mapNotNull { 
+            it.toSearchResult(currentDomain) 
+        }
         return newHomePageResponse(request.name, home)
     }
 
-    private fun Element.toSearchResult(): SearchResponse? {
-        val title = this.selectFirst("h2.entry-title > a")?.text()?.trim() ?: return null
-        val href = this.selectFirst("a")?.attr("href") ?: return null
-        val posterUrl = this.selectFirst("a > img")?.getImageAttr()?.fixImageQuality()
+    private fun Element.toSearchResult(baseUrl: String): SearchResponse? {
+        val a = this.selectFirst("h2.entry-title > a, a[title]") ?: return null
+        val title = a.text().trim()
+        val href = fixUrl(a.attr("href"), baseUrl)
+        val posterUrl = fixUrl(this.selectFirst("img")?.getImageAttr() ?: "", baseUrl).fixImageQuality()
         
         val ratingText = this.selectFirst("div.gmr-rating-item")?.ownText()?.trim()
         val quality = this.select("div.gmr-qual, div.gmr-quality-item > a").text().trim()
 
-        return if (quality.isEmpty()) {
+        return if (quality.isEmpty() && !href.contains("/movie/")) {
             newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
                 this.posterUrl = posterUrl
                 this.score = Score.from10(ratingText?.toDoubleOrNull())
@@ -96,37 +89,41 @@ class Fufafilm : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList? {
-        updateToStreamingDomain()
-        val currentDomain = streamingUrl ?: mainUrl
+        val currentDomain = getActiveDomain()
         val document = app.get("$currentDomain/page/$page/?s=$query&post_type[]=post&post_type[]=tv").document
-        return document.select("article.has-post-thumbnail").mapNotNull { it.toSearchResult() }.toNewSearchResponseList()
+        return document.select("article.item, article.has-post-thumbnail").mapNotNull { 
+            it.toSearchResult(currentDomain) 
+        }.toNewSearchResponseList()
     }
 
     override suspend fun load(url: String): LoadResponse {
-        updateToStreamingDomain()
-        val document = app.get(url, headers = headers).document
+        val currentDomain = getActiveDomain()
+        val document = app.get(url).document
 
         val title = document.selectFirst("h1.entry-title")?.text()?.trim().orEmpty()
-        val poster = document.selectFirst("figure.pull-left > img")?.getImageAttr()?.fixImageQuality()
-        val plot = document.selectFirst("div[itemprop=description] > p")?.text()?.trim()
-        val rating = document.selectFirst("span[itemprop=ratingValue]")?.text()?.trim()
+        val poster = fixUrl(document.selectFirst("figure.pull-left > img, .poster img")?.getImageAttr() ?: "", currentDomain).fixImageQuality()
+        val plot = document.selectFirst("div[itemprop=description] > p, .entry-content p")?.text()?.trim()
+        val rating = document.selectFirst("span[itemprop=ratingValue], .gmr-meta-rating span")?.text()?.trim()
+        val tags = document.select("strong:contains(Genre) ~ a, .gmr-moviedata a[rel='category tag']").eachText()
 
-        return if (url.contains("/tv/")) {
+        if (url.contains("/tv/") || document.selectFirst("div.gmr-listseries") != null) {
             val episodes = document.select("div.gmr-listseries a.button").mapIndexedNotNull { index, it ->
-                newEpisode(it.attr("href")) {
+                newEpisode(fixUrl(it.attr("href"), currentDomain)) {
                     this.name = it.text().trim()
                     this.episode = index + 1
                 }
             }
-            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+            return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
                 this.plot = plot
+                this.tags = tags
                 addScore(rating)
             }
         } else {
-            newMovieLoadResponse(title, url, TvType.Movie, url) {
+            return newMovieLoadResponse(title, url, TvType.Movie, url) {
                 this.posterUrl = poster
                 this.plot = plot
+                this.tags = tags
                 addScore(rating)
             }
         }
@@ -138,7 +135,7 @@ class Fufafilm : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val currentDomain = streamingUrl ?: mainUrl
+        val currentDomain = getActiveDomain()
         val document = app.get(data).document
         val id = document.selectFirst("div#muvipro_player_content_id")?.attr("data-id")
 
@@ -150,15 +147,29 @@ class Fufafilm : MainAPI() {
                         "action" to "muvipro_player_content",
                         "tab" to ele.attr("href").replace("#", ""),
                         "post_id" to id
-                    )
+                    ),
+                    headers = mapOf("Referer" to data, "X-Requested-With" to "XMLHttpRequest")
                 ).document.select("iframe").attr("src").let { httpsify(it) }
 
-                loadExtractor(server, data, subtitleCallback, callback)
+                if (server.isNotEmpty()) {
+                    loadExtractor(server, data, subtitleCallback, callback)
+                }
             }
         }
         return true
     }
 
-    private fun Element.getImageAttr(): String = this.attr("abs:src").ifEmpty { this.attr("abs:data-src") }
+    private fun Element.getImageAttr(): String = when {
+        this.hasAttr("data-src") -> this.attr("abs:data-src")
+        this.hasAttr("data-lazy-src") -> this.attr("abs:data-lazy-src")
+        else -> this.attr("abs:src")
+    }
+
     private fun String?.fixImageQuality(): String? = this?.replace(Regex("(-\\d*x\\d*)"), "")
+
+    private fun fixUrl(url: String, baseUrl: String): String {
+        if (url.startsWith("http")) return url
+        val cleanBase = baseUrl.removeSuffix("/")
+        return if (url.startsWith("/")) "$cleanBase$url" else "$cleanBase/$url"
+    }
 }
