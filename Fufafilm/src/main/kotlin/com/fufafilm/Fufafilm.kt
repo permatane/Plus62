@@ -1,6 +1,9 @@
 package com.fufafilm
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.httpsify
 import com.lagradost.cloudstream3.utils.loadExtractor
@@ -18,19 +21,18 @@ class Fufafilm : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-    private var streamingUrl: String? = null
+    private var directUrl: String? = null
 
-    // Metode untuk mendapatkan domain streaming asli secara dinamis
-    private suspend fun getActiveDomain(): String {
-        streamingUrl?.let { return it }
+    // Metode untuk menangkap domain streaming asli dari tombol landing page
+    private suspend fun getDirectUrl(): String {
+        directUrl?.let { return it }
         return try {
-            val response = app.get(mainUrl, timeout = 15).document
-            // Klik otomatis tombol hijau sesuai HTML landing page Anda
+            val response = app.get(mainUrl).document
             val target = response.selectFirst("a.green-button, a:contains(KE HALAMAN Web LK21)")?.attr("href")
             if (!target.isNullOrBlank()) {
                 val uri = URI(target)
                 val domain = "${uri.scheme}://${uri.host}"
-                streamingUrl = domain
+                directUrl = domain
                 domain
             } else mainUrl
         } catch (e: Exception) {
@@ -45,7 +47,7 @@ class Fufafilm : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val domain = getActiveDomain()
+        val domain = getDirectUrl()
         val document = app.get("$domain/${request.data.format(page)}").document
         val home = document.select("article.item, article.has-post-thumbnail").mapNotNull { 
             it.toSearchResult(domain) 
@@ -55,28 +57,35 @@ class Fufafilm : MainAPI() {
 
     private fun Element.toSearchResult(baseUrl: String): SearchResponse? {
         val a = this.selectFirst("h2.entry-title > a, a[title]") ?: return null
-        return newMovieSearchResponse(a.text().trim(), fixUrl(a.attr("href"), baseUrl), TvType.Movie) {
-            this.posterUrl = fixUrl(selectFirst("img")?.attr("abs:src") ?: "", baseUrl)
+        val title = a.text().trim()
+        val href = if (a.attr("href").startsWith("http")) a.attr("href") else "$baseUrl${a.attr("href")}"
+        val posterUrl = this.selectFirst("img")?.getImageAttr()?.fixImageQuality()
+
+        return if (href.contains("/tv/") || href.contains("/eps/")) {
+            newTvSeriesSearchResponse(title, href, TvType.TvSeries) { this.posterUrl = posterUrl }
+        } else {
+            newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = posterUrl }
         }
     }
 
     override suspend fun load(url: String): LoadResponse {
-        val domain = getActiveDomain()
+        val domain = getDirectUrl()
         val document = app.get(url).document
         val title = document.selectFirst("h1.entry-title")?.text()?.trim().orEmpty()
+        val poster = document.selectFirst("figure.pull-left > img")?.getImageAttr()?.fixImageQuality()
         
-        // Cek apakah Series atau Movie
-        val episodeElements = document.select("div.gmr-listseries a.button")
-        if (episodeElements.isNotEmpty()) {
-            val episodes = episodeElements.mapIndexed { index, it ->
-                newEpisode(fixUrl(it.attr("href"), domain)) {
-                    this.name = it.text().trim()
-                    this.episode = index + 1
-                }
+        val episodes = document.select("div.gmr-listseries a.button").mapIndexed { index, it ->
+            newEpisode(it.attr("href")) {
+                this.name = it.text().trim()
+                this.episode = index + 1
             }
-            return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes)
         }
-        return newMovieLoadResponse(title, url, TvType.Movie, url)
+
+        return if (episodes.isNotEmpty()) {
+            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) { this.posterUrl = poster }
+        } else {
+            newMovieLoadResponse(title, url, TvType.Movie, url) { this.posterUrl = poster }
+        }
     }
 
     override suspend fun loadLinks(
@@ -85,14 +94,11 @@ class Fufafilm : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        // PENTING: Gunakan domain streaming asli, bukan landing page
-        val domain = getActiveDomain()
+        val domain = getDirectUrl()
         val document = app.get(data).document
 
-        // Ambil ID Post untuk AJAX
+        // STRATEGI 1: Ambil ID untuk Request AJAX (Muvipro)
         val id = document.selectFirst("div#muvipro_player_content_id")?.attr("data-id")
-        
-        // 1. Ambil dari Tab Player (Logika AJAX dari file terakhir Anda)
         if (!id.isNullOrEmpty()) {
             document.select("ul.muvipro-player-tabs li a").forEach { ele ->
                 val tabId = ele.attr("href").replace("#", "")
@@ -114,7 +120,15 @@ class Fufafilm : MainAPI() {
             }
         }
 
-        // 2. Ambil dari Tombol Download (Strategi Cadangan)
+        // STRATEGI 2: Cari Iframe Langsung (Metode FilmApik)
+        document.select("iframe, .gmr-embed-responsive iframe").forEach { 
+            val src = it.getIframeAttr()
+            if (!src.isNullOrEmpty()) {
+                loadExtractor(httpsify(src), data, subtitleCallback, callback)
+            }
+        }
+
+        // STRATEGI 3: Tombol Download
         document.select("div#down a.myButton").forEach { 
             val href = it.attr("href")
             if (href.isNotEmpty()) loadExtractor(httpsify(href), data, subtitleCallback, callback)
@@ -123,8 +137,9 @@ class Fufafilm : MainAPI() {
         return true
     }
 
-    private fun fixUrl(url: String, baseUrl: String): String {
-        if (url.startsWith("http")) return url
-        return "${baseUrl.removeSuffix("/")}/${url.removePrefix("/")}"
-    }
+    private fun Element.getImageAttr(): String = this.attr("abs:src").ifEmpty { this.attr("abs:data-src") }
+
+    private fun Element?.getIframeAttr(): String? = this?.attr("data-litespeed-src") ?: this?.attr("src")
+
+    private fun String?.fixImageQuality(): String? = this?.replace(Regex("(-\\d*x\\d*)"), "")
 }
