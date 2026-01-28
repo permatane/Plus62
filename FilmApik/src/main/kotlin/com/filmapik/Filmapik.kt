@@ -8,19 +8,27 @@ import org.jsoup.nodes.Element
 import java.net.URI
 
 class Filmapik : MainAPI() {
+    // Domain utama sebagai pintu masuk (Landing Page)
     override var mainUrl = "https://filmapik.to"
     override var name = "FilmApik"
     override var lang = "id"
     override val hasMainPage = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
+    // Variabel untuk menyimpan domain target hasil tangkapan otomatis (misal: .fitness)
     private var baseRealUrl: String? = null
 
+    /**
+     * FUNGSI OTOMATIS: Menangkap domain terbaru dari tombol landing page secara real-time.
+     */
     private suspend fun getActiveDomain(): String {
         baseRealUrl?.let { return it }
+
         return try {
             val response = app.get(mainUrl, timeout = 15)
             val doc = response.document
+            
+            // Mencari href dari tombol "KE HALAMAN FILMAPIK"
             val targetLink = doc.selectFirst("a.cta-button, a:contains(KE HALAMAN FILMAPIK)")?.attr("href")
 
             if (!targetLink.isNullOrBlank()) {
@@ -32,7 +40,8 @@ class Filmapik : MainAPI() {
                 mainUrl
             }
         } catch (e: Exception) {
-            mainUrl
+            // Jika filmapik.to diblokir, coba akses domain terakhir yang diketahui (jika ada) atau tetap di mainUrl
+            baseRealUrl ?: mainUrl
         }
     }
 
@@ -40,12 +49,14 @@ class Filmapik : MainAPI() {
         "category/box-office/page/%d/" to "Box Office",
         "tvshows/page/%d/" to "Serial Terbaru",
         "latest/page/%d/" to "Film Terbaru",
-        "category/action/page/%d/" to "Action"
+        "category/action/page/%d/" to "Action",
+        "category/romance/page/%d/" to "Romance"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val currentDomain = getActiveDomain()
         val url = "$currentDomain/${request.data.format(page)}"
+        
         val document = app.get(url).document
         val items = document.select("div.items.normal article.item").mapNotNull { 
             it.toSearchResult(currentDomain) 
@@ -84,6 +95,7 @@ class Filmapik : MainAPI() {
             fixUrl(it, currentDomain) 
         }
 
+        // --- MENAMPILKAN DESKRIPSI ---
         val description = document.selectFirst("div[itemprop=description] p")?.text()
             ?.replace("ALUR CERITA : –", "")?.trim() 
 
@@ -99,11 +111,9 @@ class Filmapik : MainAPI() {
             seasonBlocks.forEach { block ->
                 val seasonNum = block.selectFirst(".se-q .se-t")?.text()?.toIntOrNull() ?: 1
                 block.select(".se-a ul.episodios li a").forEachIndexed { index, ep ->
-                    // PERBAIKAN: Menggunakan method newEpisode dengan parameter eksplisit
                     val epData = fixUrl(ep.attr("href"), currentDomain)
-                    val epName = ep.text().trim()
                     episodes.add(newEpisode(epData) {
-                        this.name = epName
+                        this.name = ep.text().trim()
                         this.season = seasonNum
                         this.episode = index + 1
                     })
@@ -129,29 +139,25 @@ class Filmapik : MainAPI() {
         }
     }
 
-override suspend fun loadLinks(
+    override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val doc = app.get(data).document
-        val downloadButtons = doc.select("div#down a.myButton")
-        
-        downloadButtons.forEach { button ->
+
+
+        doc.select("div#down a.myButton").forEach { button ->
             val href = button.attr("href")
             if (href.isNotEmpty()) {
-                // Bersihkan URL jika perlu
                 val finalUrl = if (href.startsWith("//")) "https:$href" else href
-                
-                // loadExtractor akan otomatis mengenali host seperti Filemoon atau Buzzheavier
                 loadExtractor(finalUrl, data, subtitleCallback, callback)
             }
         }
 
-        // --- STRATEGI 2: Ekstrak dari Player (Cadangan) ---
-        // Jika link download tidak ditemukan atau ingin tetap mengambil dari player
-        doc.select("li.dooplay_player_option").forEach { el ->
+        // STRATEGI 2: Ekstraksi dari opsi player (cadangan)
+        doc.select("li.dooplay_player_option[data-url]").forEach { el ->
             val iframeUrl = el.attr("data-url").trim()
             if (iframeUrl.isNotEmpty()) {
                 val finalUrl = if (iframeUrl.startsWith("//")) "https:$iframeUrl" else iframeUrl
@@ -160,5 +166,15 @@ override suspend fun loadLinks(
         }
 
         return true
+    }
+
+    // --- HELPER FUNCTIONS ---
+
+    private fun String?.fixImageQuality(): String? = this?.replace(Regex("(-\\d*x\\d*)"), "")
+
+    private fun fixUrl(url: String, baseUrl: String): String {
+        if (url.startsWith("http")) return url
+        val cleanBase = baseUrl.removeSuffix("/")
+        return if (url.startsWith("/")) "$cleanBase$url" else "$cleanBase/$url"
     }
 }
