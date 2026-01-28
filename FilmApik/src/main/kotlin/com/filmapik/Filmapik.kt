@@ -90,21 +90,38 @@ class Filmapik : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        // URL di sini sudah membawa domain dinamis dari search/mainPage
+        val currentDomain = getActiveDomain()
         val document = app.get(url).document
         
-        val title = document.selectFirst("h1[itemprop=name], .sheader h1")?.text()?.trim() ?: ""
+        // 1. Ambil Judul
+        val title = document.selectFirst("h1[itemprop=name]")?.text()
+            ?.replace("Subtitle Indonesia Filmapik", "")
+            ?.replace("Nonton Film", "")?.trim() ?: ""
+            
+        // 2. Ambil Poster
         val poster = document.selectFirst(".sheader .poster img")?.attr("src")?.let { 
-            fixUrlCustom(it, getActiveDomain()) 
+            fixUrlCustom(it, currentDomain) 
         }
 
+        // 3. Ambil Deskripsi / Sinopsis (Target Utama Anda)
+        val description = document.selectFirst("div[itemprop=description] p")?.text()
+            ?.replace("ALUR CERITA : –", "")?.trim() 
+
+        // 4. Ambil Metadata (Genre, Aktor, Tahun, Rating)
+        val genres = document.select("span.sgeneros a").map { it.text() }
+        val actors = document.select("span[itemprop=actor] a").map { it.text() }
+        val year = document.selectFirst("span.country a[href*='release-year']")?.text()?.toIntOrNull()
+        val rating = document.selectFirst("#repimdb strong")?.text()?.toDoubleOrNull()
+
+        // Cek apakah ini TV Series atau Movie
         val seasonBlocks = document.select("#seasons .se-c")
+        
         if (seasonBlocks.isNotEmpty()) {
             val episodes = mutableListOf<Episode>()
             seasonBlocks.forEach { block ->
                 val seasonNum = block.selectFirst(".se-q .se-t")?.text()?.toIntOrNull() ?: 1
                 block.select(".se-a ul.episodios li a").forEachIndexed { index, ep ->
-                    episodes.add(newEpisode(fixUrlCustom(ep.attr("href"), getActiveDomain())) {
+                    episodes.add(newEpisode(fixUrlCustom(ep.attr("href"), currentDomain)) {
                         this.name = ep.text()
                         this.season = seasonNum
                         this.episode = index + 1
@@ -113,14 +130,24 @@ class Filmapik : MainAPI() {
             }
             return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
+                this.plot = description
+                this.year = year
+                this.tags = genres
+                this.score = Score.from10(rating)
+                addActors(actors)
             }
         }
 
         return newMovieLoadResponse(title, url, TvType.Movie, url) {
             this.posterUrl = poster
+            this.plot = description
+            this.year = year
+            this.tags = genres
+            this.score = Score.from10(rating)
+            addActors(actors)
         }
     }
-
+    
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -137,8 +164,6 @@ class Filmapik : MainAPI() {
         }
         return true
     }
-
-    // --- Helper Khusus ---
 
     private fun String?.fixImageQuality(): String? = this?.replace(Regex("(-\\d*x\\d*)"), "")
 
