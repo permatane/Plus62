@@ -2,168 +2,163 @@ package com.filmapik
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.MainAPI
-import com.lagradost.cloudstream3.SearchResponse
-import com.lagradost.cloudstream3.TvType
-import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
+import java.net.URI
 
 class Filmapik : MainAPI() {
-    override var mainUrl = "https://filmapik.fitness"
-    private var directUrl: String? = null
+    override var mainUrl = "https://filmapik.to"
     override var name = "FilmApik"
-    override val hasMainPage = true
     override var lang = "id"
+    override val hasMainPage = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-private suspend fun updateToLatestDomain() {
-    if (mainUrl.contains("filmapik.to")) {
-        val doc = app.get(mainUrl).document
-        var newLink = doc.selectFirst("a:contains(KE HALAMAN FILMAPIK), a.cta-button")?.attr("href")
-        
-        // fallback ke link filmapik baru
-        if (newLink.isNullOrBlank()) {
-            newLink = doc.selectFirst("a[href*='filmapik'], a.cta-button")?.attr("href")
-        }
-        
-        if (!newLink.isNullOrBlank() && 
-           newLink.contains("filmapik") && 
-            !newLink.contains("filmapik.to") //&& 
-   //         newLink.startsWith("https://")
-                ) {
-            
-            mainUrl = newLink.substringBeforeLast("/", "").substringBefore("?")
+    private var baseRealUrl: String? = null
+
+    private suspend fun getActiveDomain(): String {
+        baseRealUrl?.let { return it }
+        return try {
+            val response = app.get(mainUrl, timeout = 15)
+            val doc = response.document
+            val targetLink = doc.selectFirst("a.cta-button, a:contains(KE HALAMAN FILMAPIK)")?.attr("href")
+
+            if (!targetLink.isNullOrBlank()) {
+                val uri = URI(targetLink)
+                val cleanUrl = "${uri.scheme}://${uri.host}"
+                baseRealUrl = cleanUrl
+                cleanUrl
+            } else {
+                mainUrl
+            }
+        } catch (e: Exception) {
+            mainUrl
         }
     }
-}    
 
-
-    
     override val mainPage = mainPageOf(
         "category/box-office/page/%d/" to "Box Office",
         "tvshows/page/%d/" to "Serial Terbaru",
         "latest/page/%d/" to "Film Terbaru",
-        "category/action/page/%d/" to "Action",
-        "category/romance/page/%d/" to "Romance"
+        "category/action/page/%d/" to "Action"
     )
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToLatestDomain()
-        val url = "$mainUrl/${request.data.format(page)}"
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val currentDomain = getActiveDomain()
+        val url = "$currentDomain/${request.data.format(page)}"
         val document = app.get(url).document
-        val items = document.select("div.items.normal article.item").mapNotNull { it.toSearchResult() }
+        val items = document.select("div.items.normal article.item").mapNotNull { 
+            it.toSearchResult(currentDomain) 
+        }
         return newHomePageResponse(request.name, items)
     }
 
-    private fun Element.toSearchResult(): SearchResponse? {
+    private fun Element.toSearchResult(baseUrl: String): SearchResponse? {
         val a = selectFirst("a[title][href]") ?: return null
         val title = a.attr("title").trim()
-        val href = fixUrl(a.attr("href"))
-        val poster = fixUrlNull(selectFirst("img[src]")?.attr("src")).fixImageQuality()
-        val rating = selectFirst("div.rating")?.ownText()?.trim()?.toDoubleOrNull()
-        val quality = selectFirst("span.quality")?.text()?.trim()
+        val href = fixUrl(a.attr("href"), baseUrl)
+        val poster = fixUrl(selectFirst("img[src]")?.attr("src") ?: "", baseUrl).fixImageQuality()
+        
         return newMovieSearchResponse(title, href, TvType.Movie) {
             this.posterUrl = poster
+            val quality = selectFirst("span.quality")?.text()?.trim()
             if (!quality.isNullOrBlank()) addQuality(quality)
-            this.score = Score.from10(rating)
         }
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val document = app.get("$mainUrl?s=$query&post_type[]=post&post_type[]=tv").document
-        return document.select("article.item").mapNotNull { it.toSearchResult() }
-    }
-
-    private fun Element.toRecommendResult(): SearchResponse? {
-        val a = selectFirst("a[href]") ?: return null
-        val img = a.selectFirst("img[src][alt]") ?: return null
-        val href = fixUrl(a.attr("href"))
-        val title = img.attr("alt").trim()
-        val poster = fixUrlNull(img.attr("src")).fixImageQuality()
-        return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = poster }
+        val currentDomain = getActiveDomain()
+        val document = app.get("$currentDomain?s=$query&post_type[]=post&post_type[]=tv").document
+        return document.select("article.item").mapNotNull { it.toSearchResult(currentDomain) }
     }
 
     override suspend fun load(url: String): LoadResponse {
+        val currentDomain = getActiveDomain()
         val document = app.get(url).document
-        val title = document.selectFirst("h1[itemprop=name], .sheader h1, .sheader h2")?.text()?.trim()
-            ?: document.selectFirst("#info h2")?.text()?.trim() ?: ""
-        val poster = document.selectFirst(".sheader .poster img")?.attr("src")?.let { fixUrl(it) }
-        val genres = document.select("#info .info-more span.sgeneros a").map { it.text() }
-        val actors = document.select("#info .info-more span.tagline:contains(Stars) a").map { it.text() }
-        val description = document.selectFirst("div[itemprop=description], .wp-content, .entry-content, .desc, .entry")?.text()?.trim()
-            ?: document.selectFirst("#info .info-more:nth-of-type(1)")?.text()?.trim() ?: "Tidak ada deskripsi."
-        val year = document.selectFirst("#info .info-more .country a")?.text()?.toIntOrNull()
-        val recommendations = document.select("#single_relacionados article").mapNotNull { it.toRecommendResult() }
-        val seasonBlocks = document.select("#seasons .se-c")
+        
+        val title = document.selectFirst("h1[itemprop=name]")?.text()
+            ?.replace("Subtitle Indonesia Filmapik", "")
+            ?.replace("Nonton Film", "")?.trim() ?: ""
+            
+        val poster = document.selectFirst(".sheader .poster img")?.attr("src")?.let { 
+            fixUrl(it, currentDomain) 
+        }
 
+        val description = document.selectFirst("div[itemprop=description] p")?.text()
+            ?.replace("ALUR CERITA : –", "")?.trim() 
+
+        val genres = document.select("span.sgeneros a").map { it.text() }
+        val actors = document.select("span[itemprop=actor] a").map { it.text() }
+        val year = document.selectFirst("span.country a[href*='release-year']")?.text()?.toIntOrNull()
+        val rating = document.selectFirst("#repimdb strong")?.text()?.toDoubleOrNull()
+
+        val seasonBlocks = document.select("#seasons .se-c")
+        
         if (seasonBlocks.isNotEmpty()) {
             val episodes = mutableListOf<Episode>()
             seasonBlocks.forEach { block ->
                 val seasonNum = block.selectFirst(".se-q .se-t")?.text()?.toIntOrNull() ?: 1
-                val epList = block.select(".se-a ul.episodios li a")
-                epList.forEachIndexed { index, ep ->
-                    val href = fixUrl(ep.attr("href"))
-                    val epName = ep.text().ifBlank { "Episode ${index + 1}" }
-                    episodes.add(
-                        newEpisode(href) {
-                            this.name = epName
-                            this.season = seasonNum
-                            this.episode = index + 1
-                        }
-                    )
+                block.select(".se-a ul.episodios li a").forEachIndexed { index, ep ->
+                    // PERBAIKAN: Menggunakan method newEpisode dengan parameter eksplisit
+                    val epData = fixUrl(ep.attr("href"), currentDomain)
+                    val epName = ep.text().trim()
+                    episodes.add(newEpisode(epData) {
+                        this.name = epName
+                        this.season = seasonNum
+                        this.episode = index + 1
+                    })
                 }
             }
             return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
+                this.plot = description
                 this.year = year
                 this.tags = genres
+                this.score = Score.from10(rating)
                 addActors(actors)
-                this.plot = description
-                this.recommendations = recommendations
             }
         }
 
         return newMovieLoadResponse(title, url, TvType.Movie, url) {
             this.posterUrl = poster
+            this.plot = description
             this.year = year
             this.tags = genres
+            this.score = Score.from10(rating)
             addActors(actors)
-            this.plot = description
-            this.recommendations = recommendations
         }
     }
 
-    override suspend fun loadLinks(
-    data: String,
-    isCasting: Boolean,
-    subtitleCallback: (SubtitleFile) -> Unit,
-    callback: (ExtractorLink) -> Unit
-): Boolean {
-
-    val doc = app.get(data).document
-
-    doc.select("li.dooplay_player_option[data-url]").forEach { el ->
-        val iframeUrl = el.attr("data-url").trim()
-        if (iframeUrl.isNotEmpty()) {
-            loadExtractor(iframeUrl, data, subtitleCallback, callback)
+override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val doc = app.get(data).document
+        val downloadButtons = doc.select("div#down a.myButton")
+        
+        downloadButtons.forEach { button ->
+            val href = button.attr("href")
+            if (href.isNotEmpty()) {
+                // Bersihkan URL jika perlu
+                val finalUrl = if (href.startsWith("//")) "https:$href" else href
+                
+                // loadExtractor akan otomatis mengenali host seperti Filemoon atau Buzzheavier
+                loadExtractor(finalUrl, data, subtitleCallback, callback)
+            }
         }
-    }
 
-    return true
-}
+        // --- STRATEGI 2: Ekstrak dari Player (Cadangan) ---
+        // Jika link download tidak ditemukan atau ingin tetap mengambil dari player
+        doc.select("li.dooplay_player_option").forEach { el ->
+            val iframeUrl = el.attr("data-url").trim()
+            if (iframeUrl.isNotEmpty()) {
+                val finalUrl = if (iframeUrl.startsWith("//")) "https:$iframeUrl" else iframeUrl
+                loadExtractor(finalUrl, data, subtitleCallback, callback)
+            }
+        }
 
-    private fun String?.fixImageQuality(): String? {
-        if (this == null) return null
-        val match = Regex("(-\\d*x\\d*)").find(this)?.groupValues?.firstOrNull()
-        return if (match != null) this.replace(match, "") else this
-    }
-
-    private fun fixUrl(url: String): String {
-        return if (url.startsWith("http")) url else "$mainUrl$url"
-    }
-
-    private fun fixUrlNull(url: String?): String? {
-        return url?.let { fixUrl(it) }
+        return true
     }
 }
