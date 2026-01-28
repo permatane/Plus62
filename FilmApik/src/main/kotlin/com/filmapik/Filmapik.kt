@@ -16,7 +16,6 @@ class Filmapik : MainAPI() {
 
     private var baseRealUrl: String? = null
 
-    // Fungsi untuk menangkap domain aktif secara otomatis
     private suspend fun getActiveDomain(): String {
         baseRealUrl?.let { return it }
         return try {
@@ -100,13 +99,14 @@ class Filmapik : MainAPI() {
             seasonBlocks.forEach { block ->
                 val seasonNum = block.selectFirst(".se-q .se-t")?.text()?.toIntOrNull() ?: 1
                 block.select(".se-a ul.episodios li a").forEachIndexed { index, ep ->
-                    // PERBAIKAN: Memastikan parameter newEpisode benar
-                    episodes.add(Episode(
-                        data = fixUrl(ep.attr("href"), currentDomain),
-                        name = ep.text().trim(),
-                        season = seasonNum,
-                        episode = index + 1
-                    ))
+                    // PERBAIKAN: Menggunakan method newEpisode dengan parameter eksplisit
+                    val epData = fixUrl(ep.attr("href"), currentDomain)
+                    val epName = ep.text().trim()
+                    episodes.add(newEpisode(epData) {
+                        this.name = epName
+                        this.season = seasonNum
+                        this.episode = index + 1
+                    })
                 }
             }
             return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
@@ -148,7 +148,6 @@ class Filmapik : MainAPI() {
 
     private fun String?.fixImageQuality(): String? = this?.replace(Regex("(-\\d*x\\d*)"), "")
 
-    // PERBAIKAN: Menyamakan nama fungsi menjadi fixUrl agar tidak Unresolved Reference
     private fun fixUrl(url: String, baseUrl: String): String {
         if (url.startsWith("http")) return url
         val cleanBase = baseUrl.removeSuffix("/")
