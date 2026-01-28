@@ -11,11 +11,12 @@ import java.net.URI
 import org.jsoup.nodes.Element
 
 class Fufafilm : MainAPI() {
+    companion object {
+        var context: android.content.Context? = null
+    }
     // URL Portal Utama (Landing Page)
     override var mainUrl = "https://www.fufafilm.sbs"
-    // Variabel untuk menyimpan domain streaming yang aktif setelah di-klik otomatis
-    private var streamingUrl: String? = null
-    
+    private var streamingUrl: String? = null  
     override var name = "FufaFilm LK21"
     override val hasMainPage = true
     override var lang = "id"
@@ -28,10 +29,7 @@ class Fufafilm : MainAPI() {
         "Accept-Language" to "id-ID,id;q=0.9"
     )
 
-    /**
-     * Fungsi Inti: Secara otomatis "mengklik" tombol hijau untuk mendapatkan 
-     * domain streaming aktif terbaru.
-     */
+    
     private suspend fun updateToStreamingDomain() {
         // Jika sudah mendapatkan streamingUrl, gunakan yang sudah ada
         if (streamingUrl != null) return
