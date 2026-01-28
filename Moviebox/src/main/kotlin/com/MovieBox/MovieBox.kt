@@ -48,7 +48,7 @@ import kotlin.math.max
 
 class MovieBox : MainAPI() {
 //    override var mainUrl = "https://api.inmoviebox.com"
-    override var mainUrl = "https://moviebox.ph"
+    override var mainUrl = "https://h5-api.aoneroom.com"
     override var name = "MovieBox"
     override val hasMainPage = true
     override var lang = "id"
