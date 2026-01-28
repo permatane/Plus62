@@ -1,9 +1,6 @@
 package com.fufafilm
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.httpsify
 import com.lagradost.cloudstream3.utils.loadExtractor
@@ -23,9 +20,9 @@ class Fufafilm : MainAPI() {
 
     private var directUrl: String? = null
 
-    // Metode untuk menangkap domain streaming asli dari tombol landing page
+    // Fungsi untuk mendapatkan domain streaming asli dari landing page
     private suspend fun getDirectUrl(): String {
-        directUrl?.let { return it }
+        if (directUrl != null) return directUrl!!
         return try {
             val response = app.get(mainUrl).document
             val target = response.selectFirst("a.green-button, a:contains(KE HALAMAN Web LK21)")?.attr("href")
@@ -88,18 +85,24 @@ class Fufafilm : MainAPI() {
         }
     }
 
+    /**
+     * LOADLINK AWAL YANG DISESUAIKAN
+     * Menggunakan AJAX Muvipro ke domain streaming asli
+     */
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val domain = getDirectUrl()
+        val domain = getDirectUrl() // Pastikan request dikirim ke domain streaming
         val document = app.get(data).document
 
-        // STRATEGI 1: Ambil ID untuk Request AJAX (Muvipro)
+        // Ambil ID Post (wajib untuk Muvipro/LK21)
         val id = document.selectFirst("div#muvipro_player_content_id")?.attr("data-id")
+        
         if (!id.isNullOrEmpty()) {
+            // Looping setiap Tab Player (seperti kode awal Anda)
             document.select("ul.muvipro-player-tabs li a").forEach { ele ->
                 val tabId = ele.attr("href").replace("#", "")
                 try {
@@ -110,25 +113,22 @@ class Fufafilm : MainAPI() {
                             "tab" to tabId,
                             "post_id" to id
                         ),
-                        headers = mapOf("Referer" to data, "X-Requested-With" to "XMLHttpRequest")
+                        headers = mapOf(
+                            "Referer" to data,
+                            "X-Requested-With" to "XMLHttpRequest"
+                        )
                     ).document.select("iframe").attr("src").let { httpsify(it) }
 
                     if (server.isNotEmpty()) {
                         loadExtractor(server, data, subtitleCallback, callback)
                     }
-                } catch (e: Exception) {}
+                } catch (e: Exception) {
+                    // Jika satu tab gagal, lanjut ke tab berikutnya
+                }
             }
         }
 
-        // STRATEGI 2: Cari Iframe Langsung (Metode FilmApik)
-        document.select("iframe, .gmr-embed-responsive iframe").forEach { 
-            val src = it.getIframeAttr()
-            if (!src.isNullOrEmpty()) {
-                loadExtractor(httpsify(src), data, subtitleCallback, callback)
-            }
-        }
-
-        // STRATEGI 3: Tombol Download
+        // Cadangan: Ambil link dari tombol download jika AJAX gagal
         document.select("div#down a.myButton").forEach { 
             val href = it.attr("href")
             if (href.isNotEmpty()) loadExtractor(httpsify(href), data, subtitleCallback, callback)
@@ -138,8 +138,6 @@ class Fufafilm : MainAPI() {
     }
 
     private fun Element.getImageAttr(): String = this.attr("abs:src").ifEmpty { this.attr("abs:data-src") }
-
-    private fun Element?.getIframeAttr(): String? = this?.attr("data-litespeed-src") ?: this?.attr("src")
 
     private fun String?.fixImageQuality(): String? = this?.replace(Regex("(-\\d*x\\d*)"), "")
 }
