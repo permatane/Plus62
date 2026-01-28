@@ -1,47 +1,51 @@
 package com.filmapik
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
+import java.net.URI
 
 class Filmapik : MainAPI() {
-    // Landing page tetap statis
+    // Satu-satunya URL statis sebagai pintu masuk utama
     override var mainUrl = "https://filmapik.to"
     override var name = "FilmApik"
     override var lang = "id"
     override val hasMainPage = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-    // Variabel untuk menyimpan domain hasil "klik" otomatis
+    // Variabel dinamis untuk menyimpan domain hasil tangkapan otomatis
     private var baseRealUrl: String? = null
 
     /**
-     * Fungsi otomatis klik "KE HALAMAN FILMAPIK"
+     * Fungsi Otomatis: Menangkap domain terbaru dari landing page secara real-time.
      */
-    private suspend fun getRealUrl(): String {
-        // Jika sudah pernah ambil, gunakan yang ada (cache)
+    private suspend fun getActiveDomain(): String {
+        // Gunakan cache jika domain sudah berhasil ditangkap sebelumnya
         baseRealUrl?.let { return it }
 
         return try {
-            val doc = app.get(mainUrl).document
-            // Mencari tombol "KE HALAMAN FILMAPIK" atau cta-button
-            var newLink = doc.selectFirst("a:contains(KE HALAMAN FILMAPIK), a.cta-button")?.attr("href")
+            // Mengambil halaman landing page filmapik.to
+            val response = app.get(mainUrl, timeout = 15)
+            val doc = response.document
             
-            if (newLink.isNullOrBlank()) {
-                newLink = doc.selectFirst("a[href*='filmapik']")?.attr("href")
-            }
+            // Mencari link pada tombol berdasarkan struktur HTML yang Anda berikan
+            // <a href="https://domain-baru.com" class="cta-button green-button">KE HALAMAN FILMAPIK</a>
+            val targetLink = doc.selectFirst("a.cta-button, a:contains(KE HALAMAN FILMAPIK)")?.attr("href")
 
-            if (!newLink.isNullOrBlank()) {
-                // Membersihkan URL agar hanya mengambil Base URL (domain)
-                val cleanUrl = newLink.substringBeforeLast("/").substringBefore("?")
+            if (!targetLink.isNullOrBlank()) {
+                // Ekstrak Scheme dan Host (Contoh: https://filmapik.id)
+                val uri = URI(targetLink)
+                val cleanUrl = "${uri.scheme}://${uri.host}"
+                
                 baseRealUrl = cleanUrl
                 cleanUrl
             } else {
-                mainUrl // Fallback jika gagal
+                // Jika tombol tidak ditemukan, kembalikan mainUrl agar tidak crash
+                mainUrl
             }
         } catch (e: Exception) {
+            // Jika filmapik.to diblokir atau DNS error, gunakan mainUrl sebagai fallback
             mainUrl
         }
     }
@@ -54,47 +58,53 @@ class Filmapik : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val currentBase = getRealUrl()
-        val url = "$currentBase/${request.data.format(page)}"
+        val currentDomain = getActiveDomain()
+        val url = "$currentDomain/${request.data.format(page)}"
+        
         val document = app.get(url).document
-        val items = document.select("div.items.normal article.item").mapNotNull { it.toSearchResult() }
+        val items = document.select("div.items.normal article.item").mapNotNull { 
+            it.toSearchResult(currentDomain) 
+        }
         return newHomePageResponse(request.name, items)
     }
 
-    private fun Element.toSearchResult(): SearchResponse? {
+    private fun Element.toSearchResult(baseUrl: String): SearchResponse? {
         val a = selectFirst("a[title][href]") ?: return null
         val title = a.attr("title").trim()
-        // Gunakan fungsi fixUrl yang merujuk ke baseRealUrl
-        val href = fixUrl(a.attr("href"))
-        val poster = fixUrlNull(selectFirst("img[src]")?.attr("src")).fixImageQuality()
+        
+        // Memastikan link film menggunakan domain hasil tangkapan terbaru
+        val href = fixUrlCustom(a.attr("href"), baseUrl)
+        val poster = fixUrlCustom(selectFirst("img[src]")?.attr("src") ?: "", baseUrl).fixImageQuality()
         
         return newMovieSearchResponse(title, href, TvType.Movie) {
             this.posterUrl = poster
-            val quality = selectFirst("span.quality")?.text()?.trim()
-            if (!quality.isNullOrBlank()) addQuality(quality)
+            val rating = selectFirst("div.rating")?.ownText()?.trim()?.toDoubleOrNull()
+            this.score = Score.from10(rating)
         }
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val currentBase = getRealUrl()
-        val document = app.get("$currentBase?s=$query&post_type[]=post&post_type[]=tv").document
-        return document.select("article.item").mapNotNull { it.toSearchResult() }
+        val currentDomain = getActiveDomain()
+        val document = app.get("$currentDomain?s=$query&post_type[]=post&post_type[]=tv").document
+        return document.select("article.item").mapNotNull { it.toSearchResult(currentDomain) }
     }
 
     override suspend fun load(url: String): LoadResponse {
-        // URL di sini sudah hasil fixUrl (domain terbaru)
+        // URL di sini sudah membawa domain dinamis dari search/mainPage
         val document = app.get(url).document
-        val title = document.selectFirst("h1[itemprop=name], .sheader h1")?.text()?.trim() ?: ""
-        val poster = document.selectFirst(".sheader .poster img")?.attr("src")?.let { fixUrl(it) }
-        val description = document.selectFirst("div[itemprop=description], .wp-content")?.text()?.trim() ?: ""
         
+        val title = document.selectFirst("h1[itemprop=name], .sheader h1")?.text()?.trim() ?: ""
+        val poster = document.selectFirst(".sheader .poster img")?.attr("src")?.let { 
+            fixUrlCustom(it, getActiveDomain()) 
+        }
+
         val seasonBlocks = document.select("#seasons .se-c")
         if (seasonBlocks.isNotEmpty()) {
             val episodes = mutableListOf<Episode>()
             seasonBlocks.forEach { block ->
                 val seasonNum = block.selectFirst(".se-q .se-t")?.text()?.toIntOrNull() ?: 1
                 block.select(".se-a ul.episodios li a").forEachIndexed { index, ep ->
-                    episodes.add(newEpisode(fixUrl(ep.attr("href"))) {
+                    episodes.add(newEpisode(fixUrlCustom(ep.attr("href"), getActiveDomain())) {
                         this.name = ep.text()
                         this.season = seasonNum
                         this.episode = index + 1
@@ -103,13 +113,11 @@ class Filmapik : MainAPI() {
             }
             return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
-                this.plot = description
             }
         }
 
         return newMovieLoadResponse(title, url, TvType.Movie, url) {
             this.posterUrl = poster
-            this.plot = description
         }
     }
 
@@ -120,30 +128,23 @@ class Filmapik : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val doc = app.get(data).document
+        // Mengambil link player dari data-url secara otomatis
         doc.select("li.dooplay_player_option[data-url]").forEach { el ->
             val iframeUrl = el.attr("data-url").trim()
             if (iframeUrl.isNotEmpty()) {
-                // loadExtractor akan otomatis mencari link video dari iframe
                 loadExtractor(iframeUrl, data, subtitleCallback, callback)
             }
         }
         return true
     }
 
-    // --- Helper Functions ---
+    // --- Helper Khusus ---
 
-    private fun String?.fixImageQuality(): String? {
-        if (this == null) return null
-        val match = Regex("(-\\d*x\\d*)").find(this)?.groupValues?.firstOrNull()
-        return if (match != null) this.replace(match, "") else this
-    }
+    private fun String?.fixImageQuality(): String? = this?.replace(Regex("(-\\d*x\\d*)"), "")
 
-    private fun fixUrl(url: String): String {
+    private fun fixUrlCustom(url: String, baseUrl: String): String {
         if (url.startsWith("http")) return url
-        // Gunakan domain terbaru jika tersedia, jika tidak gunakan landing page
-        val base = baseRealUrl ?: mainUrl
-        return if (url.startsWith("/")) "$base$url" else "$base/$url"
+        val cleanBase = baseUrl.removeSuffix("/")
+        return if (url.startsWith("/")) "$cleanBase$url" else "$cleanBase/$url"
     }
-
-    private fun fixUrlNull(url: String?): String? = url?.let { fixUrl(it) }
 }
