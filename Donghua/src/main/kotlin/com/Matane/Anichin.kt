@@ -8,7 +8,7 @@ import org.jsoup.Jsoup
 open class Anichin : MainAPI() {
     override var mainUrl              = "https://anichin.moe"
 //    private var directUrl: String? = null
-    override var name                 = "🐉 Anichin"
+    override var name                 = "Donghua Anichin"
     override val hasMainPage          = true
     override var lang                 = "id"
     override val hasDownloadSupport   = true
