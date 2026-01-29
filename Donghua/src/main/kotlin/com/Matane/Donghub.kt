@@ -5,7 +5,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.Jsoup
 
-class Donghub : MainAPI() {
+class Donghub : Anichin() {
     companion object {
         var context: android.content.Context? = null
     }
