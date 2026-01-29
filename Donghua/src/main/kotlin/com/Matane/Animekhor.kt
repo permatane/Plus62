@@ -7,7 +7,7 @@ import com.lagradost.cloudstream3.utils.*
 
 open class Animekhor : Anichin() {
     override var mainUrl              = "https://animekhor.org"
-    override var name                 = "Donghua Animekhor"
+    override var name                 = "🐉 Animekhor"
     override val hasMainPage          = true
     override var lang                 = "id"
     override val hasDownloadSupport   = true
