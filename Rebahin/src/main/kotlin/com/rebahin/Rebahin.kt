@@ -56,7 +56,7 @@ open class Rebahin : MainAPI() {
         return newHomePageResponse(items)
     }
 
-    private fun Element.toSearchResult(): SearchResponse? {
+    fun Element.toSearchResult(): SearchResponse? {  // Made public for access from other files if needed
         val title = selectFirst("span.mli-info > h2")?.text() ?: return null
         val href = selectFirst("a")!!.attr("href")
         val type = if (select("span.mli-quality").isNotEmpty()) TvType.Movie else TvType.TvSeries
@@ -223,7 +223,6 @@ open class Rebahin : MainAPI() {
             return
         }
 
-        // Ikuti redirect jika ada
         if (response.url.toString() != realUrl) {
             response = app.get(
                 response.url.toString(),
@@ -235,7 +234,6 @@ open class Rebahin : MainAPI() {
         val doc = response.document
         var playerUrl = realUrl
 
-        // Cari iframe player di dalam halaman iembed
         val innerIframe = doc.selectFirst("body > iframe[src*=/embed/]")
             ?: doc.selectFirst("iframe[src*=/embed/]")
             ?: doc.selectFirst("iframe[src*=/player/]")
@@ -265,7 +263,6 @@ open class Rebahin : MainAPI() {
         val playerDoc = response.document
         val playerHtml = playerDoc.outerHtml()
 
-        // Extract m3u8 dan mp4
         val m3u8Candidates = mutableListOf<String>()
 
         Regex("""(https?://[^\s"'<>)]+\.(?:m3u8|mp4|mkv|ts))""").findAll(playerHtml).forEach {
@@ -305,14 +302,13 @@ open class Rebahin : MainAPI() {
                         url = link.url,
                         referer = playerUrl,
                         quality = link.quality,
-                        headers = link.headers,
-                        isM3u8 = isHls
+                        isM3u8 = isHls,
+                        headers = link.headers
                     )
                 )
             }
         }
 
-        // Subtitle extraction
         val tracksRegex = Regex("""tracks\s*[:=]\s*(\[.+?\])""", RegexOption.DOT_MATCHES_ALL)
         tracksRegex.find(playerHtml)?.groupValues?.get(1)?.let { tracksJson ->
             tryParseJson<List<Tracks>>("[$tracksJson]")?.forEach { track ->
@@ -327,9 +323,8 @@ open class Rebahin : MainAPI() {
             }
         }
 
-        // Fallback ke extractor bawaan jika tidak menemukan link
         if (m3u8Candidates.isEmpty()) {
-            loadExtractor(playerUrl, referer = realUrl, subtitleCallback = subCallback, callback = sourceCallback)
+            loadExtractor(playerUrl, realUrl, subCallback, sourceCallback)
         }
     }
 
