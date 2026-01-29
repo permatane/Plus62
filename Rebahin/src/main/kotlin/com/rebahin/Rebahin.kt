@@ -177,96 +177,104 @@ open class Rebahin : MainAPI() {
     }
 
 override suspend fun loadLinks(
-            data: String,
-            isCasting: Boolean,
-            subtitleCallback: (SubtitleFile) -> Unit,
-            callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        val sources = mutableListOf<String>()
+    data: String,                  // e.g. https://rebahinxxi3.ink/.../play/?ep=2&sv=2
+    isCasting: Boolean,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+): Boolean {
+    // Step 1: Get the play page (may contain the iembed iframe)
+    val playResp = app.get(data, referer = mainUrl)
+    val playDoc = Jsoup.parse(playResp.text)
 
-        if (data.startsWith("http")) {
-            sources.add(data.trim())
-        } else {
-            // Fallback pola lama jika data adalah list
-            data.removeSurrounding("[", "]")
-                .split(",")
-                .map { it.trim().removeSurrounding("\"") }
-                .filter { it.isNotBlank() && it.startsWith("http") }
-                .forEach { sources.add(it) }
+    // Find the iembed iframe (most reliable selector from your HTML)
+    var embedUrl = playDoc.selectFirst("div#colimedia iframe#iframe-embed")?.attr("abs:src")
+        ?: playDoc.selectFirst("iframe#iframe-embed")?.attr("abs:src")
+
+    if (embedUrl.isNullOrBlank()) {
+        // Fallback: some pages put it directly in body or other div
+        embedUrl = playDoc.selectFirst("iframe[src*=/iembed/]")?.attr("abs:src")
+    }
+
+    if (embedUrl.isNullOrBlank()) return false
+
+    // Step 2: Load the /iembed/ page (this returns a wrapper with inner player iframe)
+    val embedResp = app.get(embedUrl, referer = data, timeout = 45)
+    val embedDoc = Jsoup.parse(embedResp.text)
+
+    // Step 3: Extract the final player URL (the 199.87.210.226 one)
+    var playerUrl = embedDoc.selectFirst("iframe[src*=/player/]")?.attr("abs:src")
+        ?: embedDoc.selectFirst("body > iframe")?.attr("abs:src")   // from your <body><iframe>...</body>
+
+    if (playerUrl.isNullOrBlank()) {
+        // Last fallback: sometimes it's directly in script or meta
+        playerUrl = embedDoc.select("script").firstOrNull { it.data().contains("/player/") }
+            ?.data()?.substringAfter("src=\"")?.substringBefore("\"")
+    }
+
+    if (playerUrl.isNullOrBlank()) return false
+
+    // Step 4: Load the actual player page (this is where the video tag / hls config usually is)
+    val playerResp = app.get(
+        playerUrl,
+        referer = embedUrl,                // Important: keep referer chain
+        headers = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Accept" to "*/*",
+            "Accept-Language" to "id-ID,id;q=0.9,en-US;q=0.8"
+        ),
+        timeout = 60
+    )
+
+    val playerDoc = Jsoup.parse(playerResp.text)
+
+    // Step 5: Try to find direct video sources (most common patterns on these players)
+    var found = false
+
+    // A. Classic <video> or <source>
+    playerDoc.select("video source").forEach { source ->
+        val src = source.attr("abs:src") ?: source.attr("src")
+        if (src.isNotBlank() && (src.endsWith(".mp4") || src.endsWith(".m3u8"))) {
+            callback(ExtractorLink(this.name, "Direct MP4/M3U8", src, playerUrl, Qualities.Unknown.value, src.contains(".m3u8")))
+            found = true
         }
+    }
 
-        sources.amap { src ->
-            safeApiCall {
-                if (src.contains(mainServer) || src.contains("rebahin")) {
-                    invokeRebahinNewPlayer(src, subtitleCallback, callback)
-                } else {
-                    loadExtractor(src, directUrl ?: mainUrl, subtitleCallback, callback)
+    // B. JWPlayer / video.js style config in script
+    playerDoc.select("script").forEach { script ->
+        val content = script.data()
+        if (content.isNotBlank()) {
+            // Common patterns: file: "https://...", sources: [{file:...}]
+            listOf("file:", "sources:", "playlist:", "hls:").forEach { key ->
+                if (content.contains(key)) {
+                    // Very rough extraction – improve with regex if needed
+                    val potentialUrls = Regex("""(https?://[^\s"'<>)]+\.(?:mp4|m3u8|mkv|ts))""")
+                        .findAll(content)
+                        .map { it.value.trim('"', '\'') }
+                        .toList()
+
+                    potentialUrls.forEach { url ->
+                        if (url.isNotBlank()) {
+                            val type = if (url.contains(".m3u8")) "HLS" else "MP4"
+                            callback(ExtractorLink(this.name, "$type from script", url, playerUrl, Qualities.P720.value, url.contains(".m3u8")))
+                            found = true
+                        }
+                    }
                 }
             }
         }
-
-        return sources.isNotEmpty()
     }
 
-    private suspend fun invokeRebahinNewPlayer(
-            url: String,
-            subCallback: (SubtitleFile) -> Unit,
-            sourceCallback: (ExtractorLink) -> Unit
-    ) {
-        val realUrl = fixUrl(url)
-        var response = app.get(realUrl, referer = directUrl ?: mainUrl, allowRedirects = true, timeout = 30)
-
-        // Ikuti redirect jika ada
-        if (response.isSuccessful && response.url.toString() != realUrl) {
-            response = app.get(response.url.toString(), referer = realUrl)
-        }
-
-        val doc = response.document
-        val html = doc.outerHtml()
-
-        // Extract m3u8 dari script (pola umum 2025+)
-        val m3u8Links = Regex("""(https?://[^\s"'<>]+\.m3u8)""").findAll(html).map { it.value }.toList() +
-                Regex("""["']?file["']?\s*[:=]\s*["']([^"']+\.m3u8)["']""").findAll(html).map { it.groupValues[1] } +
-                Regex("""["']?src["']?\s*[:=]\s*["']([^"']+\.m3u8)["']""").findAll(html).map { it.groupValues[1] }
-
-        m3u8Links.distinct().forEach { m3u8 ->
-            M3u8Helper.generateM3u8(
-                    name,
-                    m3u8,
-                    referer = realUrl,
-                    headers = mapOf("Origin" to mainServer, "Referer" to realUrl)
-            ).forEach(sourceCallback)
-        }
-
-        // Subtitle tracks
-        val tracksStr = Regex("""tracks\s*[:=]\s*(\[.+?\])""", RegexOption.DOT_MATCHES_ALL)
-                .find(html)?.groupValues?.get(1) ?: ""
-        tryParseJson<List<Tracks>>("[$tracksStr]")?.forEach { track ->
-            track.file?.takeIf { it.endsWith(".srt") || it.endsWith(".vtt") }?.let { file ->
-                subCallback(
-                        newSubtitleFile(
-                                getLanguage(track.label ?: "Default"),
-                                fixUrl(file)
-                        )
-                )
-            }
-        }
+    // C. If nothing found → try built-in extractors on the final player URL
+    if (!found) {
+        loadExtractor(playerUrl, referer = embedUrl, subtitleCallback, callback)
     }
 
-    private fun getLanguage(str: String): String {
-        return when {
-            str.contains("indonesia", true) || str.contains("bahasa", true) -> "Indonesian"
-            else -> str
-        }
+    // Optional: look for subtitles track if present
+    playerDoc.select("track[kind=subtitles]").forEach {
+        val subSrc = it.attr("abs:src")
+        if (subSrc.isNotBlank()) subtitleCallback(SubtitleFile("Indonesian", subSrc))
     }
 
-    private fun getBaseUrl(url: String): String {
-        return URI(url).let { "${it.scheme}://${it.host}" }
-    }
-
-    private data class Tracks(
-            @JsonProperty("file") val file: String? = null,
-            @JsonProperty("label") val label: String? = null,
-            @JsonProperty("kind") val kind: String? = null
-    )
+    return found || true  // Return true even if fallback extractor might catch it
+}
 }
