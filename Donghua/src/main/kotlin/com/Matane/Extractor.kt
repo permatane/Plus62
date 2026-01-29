@@ -46,6 +46,33 @@ open class Vtbe : ExtractorApi() {
     }
 }
 
+class ArchiveOrgExtractor : ExtractorApi() {
+    override val name = "ArchiveOrg"
+    override val mainUrl = "https://archive.org"
+    override val requiresReferer = false
+
+    override suspend fun getUrl(
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+
+            callback.invoke(
+                newExtractorLink(
+                    source = name,
+                    name = name,
+                    url = url,
+                    type = INFER_TYPE,
+                    {
+                        this.referer = referer ?: mainUrl
+                        quality = Qualities.Unknown.value
+                    }
+                )
+            )
+        }
+}
+
 class waaw : StreamSB() {
     override var mainUrl = "https://waaw.to"
 }
