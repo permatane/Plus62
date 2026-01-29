@@ -5,7 +5,6 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import.com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.mvvm.safeApiCall
 import com.lagradost.cloudstream3.utils.*
@@ -302,9 +301,9 @@ private suspend fun invokeRebahinNewPlayer(
                     if (isHls) "HLS (${link.quality}p)" else "MP4",  // 2. name
                     link.url,                               // 3. url
                     playerUrl,                              // 4. referer
-                    link.quality,                           // 5. quality
-                    isHls,                                  // 6. isM3u8
-                    link.headers                            // 7. headers
+            //        link.quality,                           // 5. quality
+             //       isHls,                                  // 6. isM3u8
+             //       link.headers                            // 7. headers
                 )
             )
         }
