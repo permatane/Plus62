@@ -5,6 +5,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import.com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.mvvm.safeApiCall
 import com.lagradost.cloudstream3.utils.*
@@ -194,139 +195,140 @@ open class Rebahin : MainAPI() {
         return sources.isNotEmpty()
     }
 
-    private suspend fun invokeRebahinNewPlayer(
-        url: String,
-        subCallback: (SubtitleFile) -> Unit,
-        sourceCallback: (ExtractorLink) -> Unit
-    ) {
-        val realUrl = fixUrl(url)
-        val baseReferer = directUrl ?: mainUrl
+private suspend fun invokeRebahinNewPlayer(
+    url: String,
+    subCallback: (SubtitleFile) -> Unit,
+    sourceCallback: (ExtractorLink) -> Unit
+) {
+    val realUrl = fixUrl(url)
+    val baseReferer = directUrl ?: mainUrl
 
-        var response = app.get(
-            realUrl,
-            referer = baseReferer,
+    var response = app.get(
+        realUrl,
+        referer = baseReferer,
+        headers = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language" to "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Origin" to mainServer,
+            "Sec-Fetch-Dest" to "iframe",
+            "Sec-Fetch-Mode" to "navigate",
+            "Sec-Fetch-Site" to "same-origin"
+        ),
+        allowRedirects = true,
+        timeout = 45
+    )
+
+    if (!response.isSuccessful) {
+        logError(Exception("iembed failed: ${response.code} - ${response.url}"))
+        return
+    }
+
+    if (response.url.toString() != realUrl) {
+        response = app.get(
+            response.url.toString(),
+            referer = realUrl,
+            headers = response.headers.toMap()
+        )
+    }
+
+    val doc = response.document
+    var playerUrl = realUrl
+
+    val innerIframe = doc.selectFirst("body > iframe[src*=/embed/]")
+        ?: doc.selectFirst("iframe[src*=/embed/]")
+        ?: doc.selectFirst("iframe[src*=/player/]")
+
+    if (innerIframe != null) {
+        playerUrl = innerIframe.attr("abs:src").takeIf { it.isNotBlank() } ?: playerUrl
+
+        response = app.get(
+            playerUrl,
+            referer = realUrl,
             headers = mapOf(
                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                "Accept-Language" to "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-                "Origin" to mainServer,
-                "Sec-Fetch-Dest" to "iframe",
-                "Sec-Fetch-Mode" to "navigate",
-                "Sec-Fetch-Site" to "same-origin"
+                "Referer" to realUrl,
+                "Origin" to "https://rebahinxxi3.ink",
+                "Accept" to "*/*"
             ),
-            allowRedirects = true,
-            timeout = 45
+            timeout = 60
         )
 
         if (!response.isSuccessful) {
-            logError(Exception("iembed failed: ${response.code} - ${response.url}"))
+            logError(Exception("Player page failed: ${response.code}"))
+            loadExtractor(playerUrl, realUrl, subCallback, sourceCallback)
             return
         }
+    }
 
-        if (response.url.toString() != realUrl) {
-            response = app.get(
-                response.url.toString(),
-                referer = realUrl,
-                headers = response.headers.toMap()
+    val playerDoc = response.document
+    val playerHtml = playerDoc.outerHtml()
+
+    val m3u8Candidates = mutableListOf<String>()
+
+    Regex("""(https?://[^\s"'<>)]+\.(?:m3u8|mp4|mkv|ts))""").findAll(playerHtml).forEach {
+        m3u8Candidates.add(it.value)
+    }
+
+    Regex("""["']?(?:file|src|url|hls|manifest)["']?\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4))["']""").findAll(playerHtml).forEach {
+        m3u8Candidates.add(it.groupValues[1])
+    }
+
+    Regex("""sources\s*:\s*\[\s*\{[^}]*file\s*:\s*["']([^"']+)["']""").findAll(playerHtml).forEach {
+        m3u8Candidates.add(it.groupValues[1])
+    }
+
+    m3u8Candidates.distinct().forEach { candidate ->
+        val isHls = candidate.contains(".m3u8") || candidate.contains(".ts")
+        val quality = when {
+            candidate.contains("1080") -> Qualities.P1080.value
+            candidate.contains("720") -> Qualities.P720.value
+            else -> Qualities.Unknown.value
+        }
+
+        M3u8Helper.generateM3u8(
+            name,
+            candidate,
+            referer = playerUrl,
+            headers = mapOf(
+                "Referer" to playerUrl,
+                "Origin" to "https://rebahinxxi3.ink",
+                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
             )
-        }
-
-        val doc = response.document
-        var playerUrl = realUrl
-
-        val innerIframe = doc.selectFirst("body > iframe[src*=/embed/]")
-            ?: doc.selectFirst("iframe[src*=/embed/]")
-            ?: doc.selectFirst("iframe[src*=/player/]")
-
-        if (innerIframe != null) {
-            playerUrl = innerIframe.attr("abs:src").takeIf { it.isNotBlank() } ?: playerUrl
-
-            response = app.get(
-                playerUrl,
-                referer = realUrl,
-                headers = mapOf(
-                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-                    "Referer" to realUrl,
-                    "Origin" to "https://rebahinxxi3.ink",
-                    "Accept" to "*/*"
-                ),
-                timeout = 60
+        ).forEach { link ->
+            sourceCallback(
+                newExtractorLink(
+                    this.name,                              // 1. source
+                    if (isHls) "HLS (${link.quality}p)" else "MP4",  // 2. name
+                    link.url,                               // 3. url
+                    playerUrl,                              // 4. referer
+                    link.quality,                           // 5. quality
+                    isHls,                                  // 6. isM3u8
+                    link.headers                            // 7. headers
+                )
             )
-
-            if (!response.isSuccessful) {
-                logError(Exception("Player page failed: ${response.code}"))
-                loadExtractor(playerUrl, realUrl, subCallback, sourceCallback)
-                return
-            }
-        }
-
-        val playerDoc = response.document
-        val playerHtml = playerDoc.outerHtml()
-
-        val m3u8Candidates = mutableListOf<String>()
-
-        Regex("""(https?://[^\s"'<>)]+\.(?:m3u8|mp4|mkv|ts))""").findAll(playerHtml).forEach {
-            m3u8Candidates.add(it.value)
-        }
-
-        Regex("""["']?(?:file|src|url|hls|manifest)["']?\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4))["']""").findAll(playerHtml).forEach {
-            m3u8Candidates.add(it.groupValues[1])
-        }
-
-        Regex("""sources\s*:\s*\[\s*\{[^}]*file\s*:\s*["']([^"']+)["']""").findAll(playerHtml).forEach {
-            m3u8Candidates.add(it.groupValues[1])
-        }
-
-        m3u8Candidates.distinct().forEach { candidate ->
-            val isHls = candidate.contains(".m3u8") || candidate.contains(".ts")
-            val quality = when {
-                candidate.contains("1080") -> Qualities.P1080.value
-                candidate.contains("720") -> Qualities.P720.value
-                else -> Qualities.Unknown.value
-            }
-
-            M3u8Helper.generateM3u8(
-                name,
-                candidate,
-                referer = playerUrl,
-                headers = mapOf(
-                    "Referer" to playerUrl,
-                    "Origin" to "https://rebahinxxi3.ink",
-                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                )
-            ).forEach { link ->
-                sourceCallback(
-                    newExtractorLink(
-                        source = this.name,
-                        name = if (isHls) "HLS (${link.quality}p)" else "MP4",
-                        url = link.url,
-                        referer = playerUrl,
-                        quality = link.quality,
-                        isM3u8 = isHls,
-                        headers = link.headers
-                    )
-                )
-            }
-        }
-
-        val tracksRegex = Regex("""tracks\s*[:=]\s*(\[.+?\])""", RegexOption.DOT_MATCHES_ALL)
-        tracksRegex.find(playerHtml)?.groupValues?.get(1)?.let { tracksJson ->
-            tryParseJson<List<Tracks>>("[$tracksJson]")?.forEach { track ->
-                track.file?.takeIf { it.endsWith(".srt") || it.endsWith(".vtt") || it.endsWith(".ass") }?.let { fileUrl ->
-                    subCallback(
-                        SubtitleFile(
-                            lang = getLanguage(track.label ?: "Indonesian"),
-                            url = fixUrl(fileUrl)
-                        )
-                    )
-                }
-            }
-        }
-
-        if (m3u8Candidates.isEmpty()) {
-            loadExtractor(playerUrl, realUrl, subCallback, sourceCallback)
         }
     }
+
+    // Subtitle extraction (unchanged)
+    val tracksRegex = Regex("""tracks\s*[:=]\s*(\[.+?\])""", RegexOption.DOT_MATCHES_ALL)
+    tracksRegex.find(playerHtml)?.groupValues?.get(1)?.let { tracksJson ->
+        tryParseJson<List<Tracks>>("[$tracksJson]")?.forEach { track ->
+            track.file?.takeIf { it.endsWith(".srt") || it.endsWith(".vtt") || it.endsWith(".ass") }?.let { fileUrl ->
+                subCallback(
+                    SubtitleFile(
+                        lang = getLanguage(track.label ?: "Indonesian"),
+                        url = fixUrl(fileUrl)
+                    )
+                )
+            }
+        }
+    }
+
+    if (m3u8Candidates.isEmpty()) {
+        loadExtractor(playerUrl, realUrl, subCallback, sourceCallback)
+    }
+}
 
     private fun getLanguage(str: String): String {
         return when {
