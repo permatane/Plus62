@@ -22,6 +22,7 @@ class AnichinPlugin: BasePlugin() {
         registerExtractorAPI(Swhoi())
         registerExtractorAPI(EmturbovidExtractor())
         registerExtractorAPI(Dailymotion())
+        registerExtractorAPI(PixelDrain())
         registerExtractorAPI(LuluStream())
         registerExtractorAPI(Rumble())
         registerExtractorAPI(Mp4Upload())
