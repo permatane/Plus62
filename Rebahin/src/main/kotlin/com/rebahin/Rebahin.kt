@@ -300,11 +300,11 @@ private suspend fun invokeRebahinNewPlayer(
                 newExtractorLink(
             source = this.name,
             name = if (link.url.contains(".m3u8") || link.url.contains(".ts")) "HLS (${link.quality}p)" else "MP4",
-            url = link.url,
-            referer = playerUrl,
-            quality = link.quality,
-            type = ExtractorLinkType.INFER_TYPE,           // ← this fixes the type mismatch
-            headers = link.headers
+            url = link.url
+     //       referer = playerUrl,
+     //       quality = link.quality,
+    //        type = ExtractorLinkType.INFER_TYPE,           // ← this fixes the type mismatch
+   //         headers = link.headers
                 )
             )
         }
