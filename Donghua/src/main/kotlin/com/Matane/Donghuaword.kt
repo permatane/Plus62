@@ -10,7 +10,7 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 
 class Donghuaword  : Animekhor() {
     override var mainUrl              = "https://donghuaworld.com"
-    override var name                 = "Donghua Donghuaword"
+    override var name                 = "🐉 Donghuaword"
     override val hasMainPage          = true
     override var lang                 = "id"
     override val hasDownloadSupport   = true
