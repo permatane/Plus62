@@ -7,7 +7,7 @@ import org.jsoup.Jsoup
 
 class Auratail : Anichin() {
     override var mainUrl              = "https://auratail.vip"
-    override var name                 = "Auratail"
+    override var name                 = "Donghua Auratail"
     override val hasMainPage          = true
     override var lang                 = "id"
     override val hasDownloadSupport   = true
