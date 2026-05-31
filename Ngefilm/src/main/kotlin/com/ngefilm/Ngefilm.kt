@@ -17,7 +17,7 @@ import org.jsoup.nodes.Element
 
 class Ngefilm : MainAPI() {
 
-    override var mainUrl = "https://www.ngefilm21.pw"
+    override var mainUrl = "https://ngefilm.live"
     private var directUrl: String? = null
     override var name = "Ngefilm21"
     override val hasMainPage = true
@@ -26,7 +26,7 @@ class Ngefilm : MainAPI() {
             setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
 	private suspend fun updateToLatestDomain() {
-        if (mainUrl.contains("ngefilm21.pw")) {
+        if (mainUrl.contains("ngefilm.live")) {
             val doc = app.get(mainUrl).document
             // Cari link domain baru 
             val newLink = doc.selectFirst("a[href*='ngefilm'], strong a, p a[href^='https://']")?.attr("href")
