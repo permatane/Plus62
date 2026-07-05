@@ -55,11 +55,6 @@ subprojects {
             targetCompatibility = JavaVersion.VERSION_1_8
         }
 
-        // Nonaktifkan minify secara manual
-        buildTypes.all {
-            it.isMinifyEnabled = false
-        }
-
         tasks.withType<KotlinJvmCompile> {
             compilerOptions {
                 jvmTarget.set(JvmTarget.JVM_1_8)
