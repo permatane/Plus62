@@ -55,15 +55,9 @@ subprojects {
             targetCompatibility = JavaVersion.VERSION_1_8
         }
 
-        // Nonaktifkan minification untuk menghindari R8 error
-        buildTypes {
-            release {
-                isMinifyEnabled = false
-                proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            }
-            debug {
-                isMinifyEnabled = false
-            }
+        // Nonaktifkan minify secara manual
+        buildTypes.all {
+            it.isMinifyEnabled = false
         }
 
         tasks.withType<KotlinJvmCompile> {
