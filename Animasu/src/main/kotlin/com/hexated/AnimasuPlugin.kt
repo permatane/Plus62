@@ -5,7 +5,7 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.extractors.*
 
 @CloudstreamPlugin
-class AnimasuPlugin: Plugin() {
+class AnimasuPlugin: BasePlugin() {
     override fun load() {
         // All providers should be added in this manner. Please don't edit the providers list directly.
        // Animasu.context = context
