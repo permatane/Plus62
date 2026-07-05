@@ -13,7 +13,7 @@ buildscript {
     dependencies {
         classpath("com.android.tools.build:gradle:8.7.3")
         classpath("com.github.recloudstream:gradle:master-SNAPSHOT")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.20")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.20")  // Diturunkan
     }
 }
 
@@ -80,15 +80,15 @@ subprojects {
         implementation("org.jsoup:jsoup:1.22.1")
         implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1")
         implementation("com.fasterxml.jackson.core:jackson-databind:2.13.1")
-        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
         implementation("org.mozilla:rhino:1.8.1")
         implementation("me.xdrop:fuzzywuzzy:1.4.0")
         implementation("com.google.code.gson:gson:2.11.0")
-        implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+        implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
         implementation("app.cash.quickjs:quickjs-android:0.9.2")
         implementation("com.squareup.okhttp3:okhttp:4.12.0")
         implementation("androidx.core:core-ktx:1.16.0")
-        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     }
 }
 
