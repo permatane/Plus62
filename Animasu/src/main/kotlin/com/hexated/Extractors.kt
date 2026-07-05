@@ -38,23 +38,23 @@ class Archivd : ExtractorApi() {
     }
 
     data class Link(
-        @JsonProperty("media") val media: String? = null,
+        @param:JsonProperty("media") val media: String? = null,
     )
 
     data class Data(
-        @JsonProperty("link") val link: Link? = null,
+        @param:JsonProperty("link") val link: Link? = null,
     )
 
     data class Datas(
-        @JsonProperty("data") val data: Data? = null,
+        @param:JsonProperty("data") val data: Data? = null,
     )
 
     data class Props(
-        @JsonProperty("datas") val datas: Datas? = null,
+        @param:JsonProperty("datas") val datas: Datas? = null,
     )
 
     data class Sources(
-        @JsonProperty("props") val props: Props? = null,
+        @param:JsonProperty("props") val props: Props? = null,
     )
 }
 
@@ -69,8 +69,8 @@ class Newuservideo : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        val iframe = app.get(url,referer=referer).document.select("iframe#videoFrame").attr("src")
-        val doc = app.get(iframe,referer="$mainUrl/").text
+        val iframe = app.get(url, referer = referer).document.select("iframe#videoFrame").attr("src")
+        val doc = app.get(iframe, referer = "$mainUrl/").text
         val json = "VIDEO_CONFIG\\s?=\\s?(.*)".toRegex().find(doc)?.groupValues?.get(1)
 
         AppUtils.tryParseJson<Sources>(json)?.streams?.map {
@@ -90,18 +90,16 @@ class Newuservideo : ExtractorApi() {
                 }
             )
         }
-
     }
 
     data class Streams(
-        @JsonProperty("play_url") val playUrl: String? = null,
-        @JsonProperty("format_id") val formatId: Int? = null,
+        @param:JsonProperty("play_url") val playUrl: String? = null,
+        @param:JsonProperty("format_id") val formatId: Int? = null,
     )
 
     data class Sources(
-        @JsonProperty("streams") val streams: ArrayList<Streams>? = null,
+        @param:JsonProperty("streams") val streams: ArrayList<Streams>? = null,
     )
-
 }
 
 class Vidhidepro : Filesim() {
