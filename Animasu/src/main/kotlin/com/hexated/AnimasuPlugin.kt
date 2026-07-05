@@ -2,11 +2,7 @@ package com.hexated
 
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import android.content.Context
-import com.lagradost.cloudstream3.plugins.Plugin
-// import com.lagradost.cloudstream3.registerExtractorAPI
-// import com.lagradost.cloudstream3.registerMainAPI
-import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.extractors.*
 
 @CloudstreamPlugin
 class AnimasuPlugin: Plugin() {
