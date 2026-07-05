@@ -1,14 +1,13 @@
 package com.anoboy
 
-import android.content.Context
+import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.plugins.Plugin
-import com.lagradost.cloudstream3.registerMainAPI
+import com.lagradost.cloudstream3.extractors.*
 
 @CloudstreamPlugin
-class AnoboyPlugin : Plugin() {
-    override fun load(context: Context) {
-        Anoboy.context = context
+class AnoboyPlugin : BasePlugin() {
+    override fun load() {
+      //  Anoboy.context = context
         registerMainAPI(Anoboy())
     }
 }
