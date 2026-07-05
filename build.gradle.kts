@@ -53,17 +53,6 @@ subprojects {
         compileOptions {
             sourceCompatibility = JavaVersion.VERSION_1_8
             targetCompatibility = JavaVersion.VERSION_1_8
-            coreLibraryDesugaringEnabled = true
-        }
-
-        kotlinOptions {
-            jvmTarget = "1.8"
-        }
-
-        packaging {
-            resources {
-                excludes += "/META-INF/{AL2.0,LGPL2.1}"
-            }
         }
 
         tasks.withType<KotlinJvmCompile> {
@@ -83,7 +72,6 @@ subprojects {
     dependencies {
         val cloudstream by configurations
         val implementation by configurations
-        val coreLibraryDesugaring by configurations
 
         cloudstream("com.lagradost:cloudstream3:pre-release")
 
@@ -101,8 +89,6 @@ subprojects {
         implementation("com.squareup.okhttp3:okhttp:4.12.0")
         implementation("androidx.core:core-ktx:1.16.0")
         implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
-
-        coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     }
 }
 
