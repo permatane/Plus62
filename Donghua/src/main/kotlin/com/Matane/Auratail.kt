@@ -1,6 +1,7 @@
 package com.Matane
 
 import org.jsoup.nodes.Element
+import org.jetbrains.annotations.Nullable
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.Jsoup
