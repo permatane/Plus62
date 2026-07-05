@@ -13,7 +13,7 @@ buildscript {
     dependencies {
         classpath("com.android.tools.build:gradle:9.1.1")
         classpath("com.github.recloudstream:gradle:-SNAPSHOT")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.20")  // Diupdate ke versi terbaru
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.20")
     }
 }
 
@@ -28,6 +28,7 @@ allprojects {
 fun Project.cloudstream(configuration: CloudstreamExtension.() -> Unit) = 
     extensions.getByName<CloudstreamExtension>("cloudstream").configuration()
 
+// Tetap pakai BaseExtension untuk kompatibilitas plugin Cloudstream
 fun Project.android(configuration: BaseExtension.() -> Unit) = 
     extensions.getByName<BaseExtension>("android").configuration()
 
@@ -46,7 +47,7 @@ subprojects {
 
         defaultConfig {
             minSdk = 21
-            compileSdkVersion(36)        // Diupdate agar sesuai CloudStream
+            compileSdk = 36
             targetSdk = 36
         }
 
@@ -72,14 +73,12 @@ subprojects {
         val cloudstream by configurations
         val implementation by configurations
 
-        // Cloudstream dependencies
         cloudstream("com.lagradost:cloudstream3:pre-release")
 
-        // Other dependencies
         implementation(kotlin("stdlib"))
-        implementation("com.github.Blatzar:NiceHttp:0.4.18")           // versi lebih baru
+        implementation("com.github.Blatzar:NiceHttp:0.4.18")
         implementation("org.jsoup:jsoup:1.22.1")
-        implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1")  // jangan naik terlalu tinggi
+        implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1")
         implementation("com.fasterxml.jackson.core:jackson-databind:2.13.1")
         implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
         implementation("org.mozilla:rhino:1.8.1")
@@ -93,6 +92,6 @@ subprojects {
     }
 }
 
-task<Delete>("clean") {
+tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
