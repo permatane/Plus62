@@ -80,10 +80,18 @@ subprojects {
         implementation(kotlin("stdlib")) // Adds Standard Kotlin Features
         implementation("com.github.Blatzar:NiceHttp:0.4.11") // HTTP Lib
         implementation("org.jsoup:jsoup:1.18.3") // HTML Parser
+        implementation("androidx.annotation:annotation:1.10.0")
+        // Do not bump above 2.13.1
+        implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1")
+        implementation("com.fasterxml.jackson.core:jackson-databind:2.13.1")
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+        // Do not bump above 1.8.1
+        implementation("org.mozilla:rhino:1.8.1")
+        implementation("me.xdrop:fuzzywuzzy:1.4.0")
+        implementation("com.google.code.gson:gson:2.14.0")
+        implementation("org.bouncycastle:bcpkix-jdk18on:1.84")
         implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
-        // IMPORTANT: Do not bump Jackson above 2.13.1, as newer versions will
         // break compatibility on older Android devices.
-        implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1") // JSON Parser
         implementation("com.github.teamnewpipe:NewPipeExtractor:v0.25.2") // NewPipe Extractor
     }
 }
