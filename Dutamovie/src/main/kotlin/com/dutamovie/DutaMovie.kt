@@ -148,7 +148,7 @@ open class DutaMovie : MainAPI() {
 
     val actors =
         document.select("div.gmr-moviedata").last()
-            ?.select("span[itemprop=actors]")?.map {
+            ?.select("span[itemprop=actors]").map {
                 it.select("a").text()
             }
 
