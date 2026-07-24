@@ -161,10 +161,7 @@ private fun Element.toSearchResult(): SearchResponse? {
         document.selectFirst("div.gmr-meta-rating > span[itemprop=ratingValue]")
             ?.text()?.trim()
 
-    val actors =
-        document.select("div.gmr-moviedata").last()
-            ?.select("span[itemprop=actors]")?.map {
-                it.select("a").text()
+    val actors = document.select("div.gmr-moviedata span[itemprop=actors] a").map { it.text() }
             }
 
     val duration = document.selectFirst("div.gmr-moviedata span[property=duration]")
