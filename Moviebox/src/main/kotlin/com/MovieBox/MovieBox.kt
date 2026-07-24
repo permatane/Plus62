@@ -10,7 +10,7 @@ import com.lagradost.nicehttp.RequestBodyTypes
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 
-class Moviebox : MainAPI() {
+class MovieBox : MainAPI() {
 
     override var mainUrl = "https://moviebox.ph"
     private val apiUrl = "https://fmoviesunblocked.net"
@@ -77,7 +77,7 @@ class Moviebox : MainAPI() {
         val tvType = if (subject?.subjectType == 2) TvType.TvSeries else TvType.Movie
         val description = subject?.description
         val trailer = subject?.trailer?.videoAddress?.url
-        val rating = subject?.imdbRatingValue.toRatingInt()
+        val score = Score.from(subject?.imdbRatingValue)
         val actors = doc?.stars?.mapNotNull { cast ->
             ActorData(Actor(cast.name ?: return@mapNotNull null, cast.avatarUrl), roleString = cast.character)
         }?.distinctBy { it.actor }
@@ -97,7 +97,7 @@ class Moviebox : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = score
                 this.actors = actors
                 this.recommendations = recommendations
                 addTrailer(trailer, addRaw = true)
@@ -108,7 +108,7 @@ class Moviebox : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = score
                 this.actors = actors
                 this.recommendations = recommendations
                 addTrailer(trailer, addRaw = true)
