@@ -19,7 +19,7 @@ class Fufafilm : MainAPI() {
     companion object {
         var context: android.content.Context? = null
     }
-    override var mainUrl = "https://onlydood.click"
+    override var mainUrl = "https://fufafilm.sbs"
     private var directUrl: String? = "https://www.fufafilm.sbs"
     override var name = "FufaFilm LK21 "
     override val hasMainPage = true
@@ -161,7 +161,10 @@ private fun Element.toSearchResult(): SearchResponse? {
         document.selectFirst("div.gmr-meta-rating > span[itemprop=ratingValue]")
             ?.text()?.trim()
 
-    val actors = document.select("div.gmr-moviedata span[itemprop=actors] a").map { it.text() }
+    val actors =
+        document.select("div.gmr-moviedata").last()
+            ?.select("span[itemprop=actors]")?.map {
+                it.select("a").text()
             }
 
     val duration = document.selectFirst("div.gmr-moviedata span[property=duration]")
