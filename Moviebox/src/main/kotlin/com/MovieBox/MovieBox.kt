@@ -116,7 +116,7 @@ class MovieBox : MainAPI() {
         }
     }
 
-    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (newSubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         val media = parseJson<LoadData>(data)
         val referer = "$apiUrl/spa/videoPlayPage/movies/${media.detailPath}?id=${media.id}&type=/movie/detail&lang=en"
         val streams = app.get("$apiUrl/wefeed-h5-bff/web/subject/play?subjectId=${media.id}&se=${media.season ?: 0}&ep=${media.episode ?: 0}", referer = referer)
@@ -133,7 +133,7 @@ class MovieBox : MainAPI() {
         val format = streams?.first()?.format
         app.get("$apiUrl/wefeed-h5-bff/web/subject/caption?format=$format&id=$id&subjectId=${media.id}", referer = referer)
             .parsedSafe<Media>()?.data?.captions?.forEach { subtitle ->
-                subtitleCallback(newSubtitleFile(subtitle.lanName ?: "", subtitle.url ?: return@forEach))
+                subtitleCallback(SubtitleFile(subtitle.lanName ?: "", subtitle.url ?: return@forEach))
             }
 
         return true
