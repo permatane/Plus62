@@ -24,6 +24,5 @@ class DutaMoviePlugin : Plugin() {
         registerExtractorAPI(Dm21embed())
         registerExtractorAPI(Veev())
         registerExtractorAPI(Minochinos())
-        registerExtractorAPI(Gofile())
     }
 }
