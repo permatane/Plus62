@@ -5,7 +5,6 @@ import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.kotlin.dsl.register
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
-
 buildscript {
     repositories {
         google()
