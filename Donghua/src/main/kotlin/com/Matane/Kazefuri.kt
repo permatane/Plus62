@@ -6,7 +6,7 @@ import com.lagradost.cloudstream3.utils.*
 import org.jsoup.Jsoup
 
 class Kazefuri : Anichin() {
-    override var mainUrl              = "https://sv3.kazefuri.cloud"
+    override var mainUrl              = "https://sv4.kazefuri.cloud"
     override var name                 = "Donghua Kazefuri"
     override val hasMainPage          = true
     override var lang                 = "id"
