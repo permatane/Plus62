@@ -2,7 +2,7 @@ package com.ngefilm
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
-import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import org.jsoup.nodes.Element
 
@@ -19,30 +19,29 @@ class Ngefilm : MainAPI() {
     override val hasMainPage = true
 
 
-    override val supportedTypes =
-        setOf(
-            TvType.Movie,
-            TvType.TvSeries,
-            TvType.Anime,
-            TvType.AsianDrama
-        )
+    override val supportedTypes = setOf(
+        TvType.Movie,
+        TvType.TvSeries,
+        TvType.Anime,
+        TvType.AsianDrama
+    )
 
 
 
-    override val mainPage =
-        mainPageOf(
+    override val mainPage = mainPageOf(
 
-            "/page/%d/?s&search=advanced&post_type=movie" to "Movies Terbaru",
+        "/page/%d/?s&search=advanced&post_type=movie" to "Movies",
 
-            "/page/%d/?s=&search=advanced&post_type=tv" to "Series Terbaru",
+        "/page/%d/?s=&search=advanced&post_type=tv" to "Series",
 
-            "country/usa/page/%d/" to "Film Barat",
+        "country/usa/page/%d/" to "Film Barat",
 
-            "country/indonesia/page/%d/" to "Film Indonesia",
+        "country/indonesia/page/%d/" to "Film Indonesia",
 
-            "country/japan/page/%d/" to "Film Jepang"
+        "country/japan/page/%d/" to "Film Jepang"
 
-        )
+    )
+
 
 
 
@@ -56,8 +55,7 @@ class Ngefilm : MainAPI() {
         val document =
             app.get(
                 "$mainUrl/${request.data.format(page)}"
-            )
-                .document
+            ).document
 
 
         val home =
@@ -72,8 +70,8 @@ class Ngefilm : MainAPI() {
             request.name,
             home
         )
-
     }
+
 
 
 
@@ -83,7 +81,7 @@ class Ngefilm : MainAPI() {
 
 
         val title =
-            this.selectFirst("h2.entry-title > a")
+            selectFirst("h2.entry-title > a")
                 ?.text()
                 ?.trim()
                 ?: return null
@@ -92,7 +90,7 @@ class Ngefilm : MainAPI() {
 
         val href =
             fixUrl(
-                this.selectFirst("a")
+                selectFirst("a")
                     ?.attr("href")
                     ?: return null
             )
@@ -101,7 +99,7 @@ class Ngefilm : MainAPI() {
 
         val poster =
             fixUrlNull(
-                this.selectFirst("img")
+                selectFirst("img")
                     ?.attr("src")
             )
 
@@ -116,8 +114,8 @@ class Ngefilm : MainAPI() {
             this.posterUrl = poster
 
         }
-
     }
+
 
 
 
@@ -134,8 +132,7 @@ class Ngefilm : MainAPI() {
         val document =
             app.get(
                 "$mainUrl/page/$page/?s=$query"
-            )
-                .document
+            ).document
 
 
 
@@ -156,13 +153,12 @@ class Ngefilm : MainAPI() {
 
 
     override suspend fun load(
-        url: String
+        url:String
     ): LoadResponse {
 
 
         val document =
-            app.get(url)
-                .document
+            app.get(url).document
 
 
 
@@ -224,22 +220,21 @@ class Ngefilm : MainAPI() {
 
 
     override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
+        data:String,
+        isCasting:Boolean,
+        subtitleCallback:(SubtitleFile)->Unit,
+        callback:(ExtractorLink)->Unit
 
-    ): Boolean {
+    ):Boolean {
 
 
         val document =
-            app.get(data)
-                .document
+            app.get(data).document
 
 
 
         /*
-        Cari iframe player
+        Ambil iframe player
         */
 
         val iframe =
@@ -250,7 +245,6 @@ class Ngefilm : MainAPI() {
 
 
 
-
         val playerUrl =
             fixUrl(iframe)
 
@@ -258,42 +252,44 @@ class Ngefilm : MainAPI() {
 
 
         /*
-        Ambil response player
+        Ambil HTML/API player
         */
 
-        val playerResponse =
+        val response =
             app.get(
                 playerUrl,
-                referer = data
-            )
-                .text
+                referer = data,
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT
+                )
+            ).text
 
 
 
 
 
         /*
-        Cari master.m3u8
+        Cari HLS m3u8
         */
 
         var m3u8 =
             Regex(
                 """https?://[^"'\\ ]+\.m3u8[^"'\\ ]*"""
             )
-                .find(playerResponse)
-                ?.value
+            .find(response)
+            ?.value
 
 
 
 
         /*
-        fallback jika player memakai escape JSON
+        Fallback jika player memakai JSON
         */
 
-        if (m3u8 == null) {
+        if(m3u8 == null){
 
 
-            val apiResponse =
+            val api =
                 app.get(
                     playerUrl,
                     headers = mapOf(
@@ -309,16 +305,15 @@ class Ngefilm : MainAPI() {
                 Regex(
                     """https?://[^"'\\ ]+master\.m3u8[^"'\\ ]*"""
                 )
-                    .find(apiResponse)
-                    ?.value
+                .find(api)
+                ?.value
 
         }
 
 
 
 
-
-        if (m3u8 == null)
+        if(m3u8 == null)
             return false
 
 
@@ -328,22 +323,28 @@ class Ngefilm : MainAPI() {
 
         callback(
 
-            ExtractorLink(
+            newExtractorLink(
 
                 source = "Ngefilm21",
 
-                name = "Morencius HLS",
+                name = "Morencius",
 
                 url = m3u8,
 
-                referer = "https://morencius.com/",
+                type = ExtractorLinkType.M3U8
 
-                quality = 720
+            ){
 
-            )
+                this.referer =
+                    "https://morencius.com/"
+
+
+                this.quality =
+                    720
+
+            }
 
         )
-
 
 
 
