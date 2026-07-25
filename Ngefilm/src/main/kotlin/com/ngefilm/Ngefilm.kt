@@ -284,17 +284,17 @@ override suspend fun loadLinks(
                 if (allStreams.isNotEmpty()) {
                     allStreams.forEach { streamUrl ->
                         if (streamUrl.contains(".m3u8")) {
-                            // Generate resolusi otomatis jika stream berupa HLS (.m3u8)
+                            // Perbaikan 1: Gunakan named argument `headers = headers` agar tidak type mismatch
                             M3u8Helper.generateM3u8(
-                                this.name,
-                                streamUrl,
-                                "$directUrl/",
-                                headers
+                                source = this.name,
+                                streamUrl = streamUrl,
+                                referer = "$directUrl/",
+                                headers = headers
                             ).forEach(callback)
                         } else {
-                            // Generate link direct mp4/stream biasa
+                            // Perbaikan 2: Gunakan `newExtractorLink` pengganti konstruktor lama yang deprecated
                             callback.invoke(
-                                ExtractorLink(
+                                newExtractorLink(
                                     source = this.name,
                                     name = this.name,
                                     url = streamUrl,
