@@ -259,16 +259,15 @@ class Ngefilm : MainAPI() {
                             ).forEach(callback)
                         } else {
                             callback.invoke(
-                                newExtractorLink(
+                                ExtractorLink(
                                     source = this.name,
                                     name = this.name,
                                     url = streamUrl,
-                                 //   referer = "$directUrl/",
-                                 //   quality = Qualities.Unknown.value
-                                ).apply {
+                                    referer = "$directUrl/",
+                                    quality = Qualities.Unknown.value,
+                                    isM3u8 = false,
                                     headers = headers
-                                    isM3u8 = false
-                                }
+                                )
                             )
                         }
                     }
