@@ -1,17 +1,14 @@
 package com.ngefilm
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import org.jsoup.nodes.Element
-import java.net.URI
 
 
 class Ngefilm : MainAPI() {
+
 
     override var mainUrl = "https://new39.ngefilm.site"
 
@@ -20,6 +17,7 @@ class Ngefilm : MainAPI() {
     override var lang = "id"
 
     override val hasMainPage = true
+
 
     override val supportedTypes =
         setOf(
@@ -30,14 +28,23 @@ class Ngefilm : MainAPI() {
         )
 
 
+
     override val mainPage =
         mainPageOf(
-            "/page/%d/?s&search=advanced&post_type=movie" to "Movies",
-            "/page/%d/?s=&search=advanced&post_type=tv" to "Series",
+
+            "/page/%d/?s&search=advanced&post_type=movie" to "Movies Terbaru",
+
+            "/page/%d/?s=&search=advanced&post_type=tv" to "Series Terbaru",
+
             "country/usa/page/%d/" to "Film Barat",
-            "country/indonesia/page/%d/" to "Indonesia",
-            "country/japan/page/%d/" to "Jepang"
+
+            "country/indonesia/page/%d/" to "Film Indonesia",
+
+            "country/japan/page/%d/" to "Film Jepang"
+
         )
+
+
 
 
     override suspend fun getMainPage(
@@ -45,10 +52,12 @@ class Ngefilm : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
 
+
         val document =
             app.get(
                 "$mainUrl/${request.data.format(page)}"
-            ).document
+            )
+                .document
 
 
         val home =
@@ -63,31 +72,39 @@ class Ngefilm : MainAPI() {
             request.name,
             home
         )
+
     }
+
+
 
 
 
     private fun Element.toSearchResult(): SearchResponse? {
 
+
         val title =
-            selectFirst("h2.entry-title > a")
+            this.selectFirst("h2.entry-title > a")
                 ?.text()
                 ?.trim()
                 ?: return null
 
 
+
         val href =
             fixUrl(
-                selectFirst("a")!!
-                    .attr("href")
+                this.selectFirst("a")
+                    ?.attr("href")
+                    ?: return null
             )
+
 
 
         val poster =
             fixUrlNull(
-                selectFirst("a img")
+                this.selectFirst("img")
                     ?.attr("src")
             )
+
 
 
         return newMovieSearchResponse(
@@ -95,9 +112,16 @@ class Ngefilm : MainAPI() {
             href,
             TvType.Movie
         ){
+
             this.posterUrl = poster
+
         }
+
     }
+
+
+
+
 
 
 
@@ -107,14 +131,15 @@ class Ngefilm : MainAPI() {
     ): SearchResponseList? {
 
 
-        val doc =
+        val document =
             app.get(
                 "$mainUrl/page/$page/?s=$query"
             )
-            .document
+                .document
 
 
-        return doc
+
+        return document
             .select("article")
             .mapNotNull {
                 it.toSearchResult()
@@ -122,6 +147,11 @@ class Ngefilm : MainAPI() {
             .toNewSearchResponseList()
 
     }
+
+
+
+
+
 
 
 
@@ -133,6 +163,7 @@ class Ngefilm : MainAPI() {
         val document =
             app.get(url)
                 .document
+
 
 
         val title =
@@ -150,6 +181,7 @@ class Ngefilm : MainAPI() {
                     .selectFirst("figure img")
                     ?.attr("src")
             )
+
 
 
         val description =
@@ -180,7 +212,14 @@ class Ngefilm : MainAPI() {
             addScore(rating)
 
         }
+
     }
+
+
+
+
+
+
 
 
 
@@ -203,31 +242,32 @@ class Ngefilm : MainAPI() {
         Cari iframe player
         */
 
-
         val iframe =
             document
-                .select("iframe")
-                .attr("src")
+                .selectFirst("iframe")
+                ?.attr("src")
+                ?: return false
 
 
 
-        if (iframe.isEmpty())
-            return false
+
+        val playerUrl =
+            fixUrl(iframe)
 
 
 
 
         /*
-        Buka player JWPlayer
+        Ambil response player
         */
 
-
-        val playerHtml =
+        val playerResponse =
             app.get(
-                iframe,
+                playerUrl,
                 referer = data
             )
-            .text
+                .text
+
 
 
 
@@ -236,18 +276,52 @@ class Ngefilm : MainAPI() {
         Cari master.m3u8
         */
 
-
-        val m3u8 =
+        var m3u8 =
             Regex(
-                """https?://[^"' ]+master\.m3u8[^"' ]*"""
+                """https?://[^"'\\ ]+\.m3u8[^"'\\ ]*"""
             )
-            .find(playerHtml)
-            ?.value
+                .find(playerResponse)
+                ?.value
+
+
+
+
+        /*
+        fallback jika player memakai escape JSON
+        */
+
+        if (m3u8 == null) {
+
+
+            val apiResponse =
+                app.get(
+                    playerUrl,
+                    headers = mapOf(
+                        "Referer" to data,
+                        "User-Agent" to USER_AGENT
+                    )
+                )
+                .text
+
+
+
+            m3u8 =
+                Regex(
+                    """https?://[^"'\\ ]+master\.m3u8[^"'\\ ]*"""
+                )
+                    .find(apiResponse)
+                    ?.value
+
+        }
+
+
 
 
 
         if (m3u8 == null)
             return false
+
+
 
 
 
@@ -264,28 +338,16 @@ class Ngefilm : MainAPI() {
 
                 referer = "https://morencius.com/",
 
-                quality = Qualities.Unknown.value,
-
-                type = ExtractorLinkType.M3U8
+                quality = 720
 
             )
 
         )
 
 
+
+
         return true
-
-    }
-
-
-
-    private fun getBaseUrl(url:String):String{
-
-        return URI(url).let {
-
-            "${it.scheme}://${it.host}"
-
-        }
 
     }
 
