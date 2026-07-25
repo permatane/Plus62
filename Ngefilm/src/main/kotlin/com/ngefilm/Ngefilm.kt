@@ -266,8 +266,8 @@ class Ngefilm : MainAPI() {
                                  //   referer = "$directUrl/",
                                  //   quality = Qualities.Unknown.value
                                 ).apply {
-                                    this.headers = headers
-                                    this.isM3u8 = false
+                                    headers = headers
+                                    isM3u8 = false
                                 }
                             )
                         }
