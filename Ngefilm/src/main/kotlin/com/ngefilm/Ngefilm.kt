@@ -9,6 +9,8 @@ import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.httpsify
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.toNewSearchResponseList
@@ -17,7 +19,7 @@ import org.jsoup.nodes.Element
 
 class Ngefilm : MainAPI() {
 
-    override var mainUrl = "https://new39.ngefilm.site"
+    override var mainUrl = "https://ngefilm.live"
     private var directUrl: String? = null
     override var name = "Ngefilm21"
     override val hasMainPage = true
@@ -197,47 +199,123 @@ private fun Element.toSearchResult(): SearchResponse? {
         }
     }
 
-    override suspend fun loadLinks(
-            data: String,
-            isCasting: Boolean,
-            subtitleCallback: (SubtitleFile) -> Unit,
-            callback: (ExtractorLink) -> Unit
+override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
     ): Boolean {
-
         val document = app.get(data).document
         val id = document.selectFirst("div#muvipro_player_content_id")?.attr("data-id")
-
         if (id.isNullOrEmpty()) {
             document.select("ul.muvipro-player-tabs li a").amap { ele ->
-                val iframe =
-                        app.get(fixUrl(ele.attr("href")))
-                                .document
-                                .selectFirst("div.gmr-embed-responsive iframe")
-                                .getIframeAttr()
-                                ?.let { httpsify(it) }
-                                ?: return@amap
-
-                loadExtractor(iframe, "$directUrl/", subtitleCallback, callback)
+                val iframe = app.get(fixUrl(ele.attr("href")))
+                    .document
+                    .selectFirst("div.gmr-embed-responsive iframe")
+                    ?.getIframeAttr()
+                    ?.let { httpsify(it) } ?: return@amap
+                processIframe(iframe, subtitleCallback, callback)
             }
         } else {
             document.select("div.tab-content-ajax").amap { ele ->
-                val server =
-                        app.post(
-                                        "$directUrl/wp-admin/admin-ajax.php",
-                                        data =
-                                                mapOf(
-                                                        "action" to "muvipro_player_content",
-                                                        "tab" to ele.attr("id"),
-                                                        "post_id" to "$id"
-                                                )
-                                )
-                                .document
-                                .select("iframe")
-                                .attr("src")
-                                .let { httpsify(it) }
-
-                loadExtractor(server, "$directUrl/", subtitleCallback, callback)
+                val server = app.post(
+                    "$directUrl/wp-admin/admin-ajax.php",
+                    data = mapOf(
+                        "action" to "muvipro_player_content",
+                        "tab" to ele.attr("id"),
+                        "post_id" to "$id"
+                    )
+                )
+                    .document
+                    .selectFirst("iframe")
+                    ?.getIframeAttr()
+                    ?.let { httpsify(it) } ?: return@amap
+                processIframe(server, subtitleCallback, callback)
             }
+        }
+        return true
+    }
+
+    private suspend fun processIframe(
+        url: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        // Cek apakah URL merupakan custom player Ngefilm / rpmlive
+        if (url.contains("rpmlive") || url.contains("playerngefilm") || url.contains("api/v1/video") || url.contains("ngefilm")) {
+            try {
+                // Ekstrak Video ID dari URL iframe atau embed
+                val videoId = Regex("[?&]id=([a-zA-Z0-9_-]+)").find(url)?.groupValues?.get(1)
+                    ?: Regex("/(?:v|embed|video)/([a-zA-Z0-9_-]+)").find(url)?.groupValues?.get(1)
+                    ?: url.substringAfterLast("/").substringBefore("?")
+
+                val host = URI(url).host
+                val refererHost = URI(directUrl ?: mainUrl).host
+                
+                // Bangun endpoint API persis sesuai dengan struktur request method GET
+                val apiUrl = if (url.contains("/api/v1/video")) {
+                    url
+                } else {
+                    "https://$host/api/v1/video?id=$videoId&w=1536&h=864&r=$refererHost"
+                }
+
+                val headers = mapOf(
+                    "Referer" to "$directUrl/",
+                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept" to "application/json, text/javascript, */*; q=0.01",
+                    "X-Requested-With" to "XMLHttpRequest"
+                )
+
+                val responseText = app.get(apiUrl, headers = headers).text
+                
+                // Ekstrak URL stream langsung (.m3u8 / .mp4) dari response text
+                val streamUrls = Regex("https?://[^\"'\\\\\\s]+?\\.(?:m3u8|mp4)[^\"'\\\\\\s]*").findAll(responseText)
+                    .map { it.value.replace("\\/", "/") }
+                    .toSet()
+
+                // Ekstrak URL dari key JSON umum (file, url, src, stream, link)
+                val urlRegex = Regex("[\"'](?:file|url|src|data|stream|link)[\"']\\s*:\\s*[\"'](https?://[^\"']+)[\"']")
+                val extractedFromKeys = urlRegex.findAll(responseText)
+                    .map { it.groupValues[1].replace("\\/", "/") }
+                    .toSet()
+
+                val allStreams = (streamUrls + extractedFromKeys).filter { it.startsWith("http") }
+
+                if (allStreams.isNotEmpty()) {
+                    allStreams.forEach { streamUrl ->
+                        if (streamUrl.contains(".m3u8")) {
+                            // Generate resolusi otomatis jika stream berupa HLS (.m3u8)
+                            M3u8Helper.generateM3u8(
+                                this.name,
+                                streamUrl,
+                                "$directUrl/",
+                                headers
+                            ).forEach(callback)
+                        } else {
+                            // Generate link direct mp4/stream biasa
+                            callback.invoke(
+                                ExtractorLink(
+                                    source = this.name,
+                                    name = this.name,
+                                    url = streamUrl,
+                                    referer = "$directUrl/",
+                                    quality = Qualities.Unknown.value,
+                                    isM3u8 = false,
+                                    headers = headers
+                                )
+                            )
+                        }
+                    }
+                    return
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Fallback ke extractor standar Cloudstream (YouTube, StreamSB, Doodstream, dll)
+        loadExtractor(url, "$directUrl/", subtitleCallback, callback)
+    }
         }
 
         return true
