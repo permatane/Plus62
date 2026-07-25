@@ -14,6 +14,8 @@ import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.httpsify
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.toNewSearchResponseList
+import com.lagradost.cloudstream3.utils.* // <-- Ganti dengan wildcard ini agar newExtractorLink ter-import
+import com.lagradost.cloudstream3.toNewSearchResponseList
 import java.net.URI
 import org.jsoup.nodes.Element
 
@@ -284,7 +286,6 @@ override suspend fun loadLinks(
                 if (allStreams.isNotEmpty()) {
                     allStreams.forEach { streamUrl ->
                         if (streamUrl.contains(".m3u8")) {
-                            // Perbaikan 1: Gunakan named argument `headers = headers` agar tidak type mismatch
                             M3u8Helper.generateM3u8(
                                 source = this.name,
                                 streamUrl = streamUrl,
@@ -292,7 +293,6 @@ override suspend fun loadLinks(
                                 headers = headers
                             ).forEach(callback)
                         } else {
-                            // Perbaikan 2: Gunakan `newExtractorLink` pengganti konstruktor lama yang deprecated
                             callback.invoke(
                                 newExtractorLink(
                                     source = this.name,
