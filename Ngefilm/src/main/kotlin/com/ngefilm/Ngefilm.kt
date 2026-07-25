@@ -9,7 +9,7 @@ import java.net.URI
 import org.jsoup.nodes.Element
 
 class Ngefilm : MainAPI() {
-    override var mainUrl = "https://ngefilm.live"
+    override var mainUrl = "https://new39.ngefilm.site"
     private var directUrl: String? = null
     override var name = "Ngefilm21"
     override val hasMainPage = true
@@ -22,13 +22,15 @@ class Ngefilm : MainAPI() {
     )
 
     private suspend fun updateToLatestDomain() {
-        if (mainUrl.contains("ngefilm.live")) {
-            val doc = app.get(mainUrl).document
-            val newLink = doc.selectFirst("a[href*='ngefilm'], strong a, p a[href^='https://']")?.attr("href")
-            if (!newLink.isNullOrBlank() && newLink.contains("ngefilm")) {
-                mainUrl = newLink.substringBeforeLast("/", "").substringBefore("?")
+        try {
+            if (mainUrl.contains("ngefilm")) {
+                val doc = app.get(mainUrl).document
+                val newLink = doc.selectFirst("a[href*='ngefilm'], strong a, p a[href^='https://']")?.attr("href")
+                if (!newLink.isNullOrBlank() && newLink.contains("ngefilm")) {
+                    mainUrl = newLink.substringBeforeLast("/", "").substringBefore("?")
+                }
             }
-        }
+        } catch (_: Exception) {}
     }
 
     override val mainPage = mainPageOf(
@@ -82,8 +84,7 @@ class Ngefilm : MainAPI() {
 
     override suspend fun search(query: String, page: Int): SearchResponseList? {
         val document = app.get("$mainUrl/page/$page/?s=$query&post_type[]=post&post_type[]=tv", timeout = 50L).document
-        val results = document.select("article.has-post-thumbnail").mapNotNull { it.toSearchResult() }.toNewSearchResponseList()
-        return results
+        return document.select("article.has-post-thumbnail").mapNotNull { it.toSearchResult() }.toNewSearchResponseList()
     }
 
     private fun Element.toRecommendResult(): SearchResponse? {
@@ -179,32 +180,51 @@ class Ngefilm : MainAPI() {
     ): Boolean {
         val document = app.get(data).document
         val id = document.selectFirst("div#muvipro_player_content_id")?.attr("data-id")
-        if (id.isNullOrEmpty()) {
-            document.select("ul.muvipro-player-tabs li a").amap { ele ->
-                val iframe = app.get(fixUrl(ele.attr("href")))
-                    .document
-                    .selectFirst("div.gmr-embed-responsive iframe")
-                    ?.getIframeAttr()
-                    ?.let { httpsify(it) } ?: return@amap
-                processIframe(iframe, subtitleCallback, callback)
-            }
-        } else {
-            document.select("div.tab-content-ajax").amap { ele ->
-                val server = app.post(
-                    "$directUrl/wp-admin/admin-ajax.php",
-                    data = mapOf(
-                        "action" to "muvipro_player_content",
-                        "tab" to ele.attr("id"),
-                        "post_id" to "$id"
-                    )
-                )
-                    .document
-                    .selectFirst("iframe")
-                    ?.getIframeAttr()
-                    ?.let { httpsify(it) } ?: return@amap
-                processIframe(server, subtitleCallback, callback)
+
+        val playerTabs = document.select("ul.muvipro-player-tabs li a, .gmr-player-nav li a, div.tab-links a")
+        if (playerTabs.isNotEmpty()) {
+            playerTabs.amap { ele ->
+                val tabHref = fixUrl(ele.attr("href"))
+                try {
+                    val iframeDoc = app.get(tabHref).document
+                    val iframe = iframeDoc.selectFirst("div.gmr-embed-responsive iframe, .embed-responsive iframe, iframe")
+                        ?.getIframeAttr()
+                        ?.let { httpsify(it) }
+                    
+                    if (!iframe.isNullOrBlank()) {
+                        processIframe(iframe, subtitleCallback, callback)
+                    }
+                } catch (_: Exception) {}
             }
         }
+
+        if (!id.isNullOrEmpty()) {
+            document.select("div.tab-content-ajax, div.player-tab-content").amap { ele ->
+                try {
+                    val server = app.post(
+                        "$directUrl/wp-admin/admin-ajax.php",
+                        data = mapOf(
+                            "action" to "muvipro_player_content",
+                            "tab" to ele.attr("id"),
+                            "post_id" to "$id"
+                        ),
+                        headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                    )
+                        .document
+                        .selectFirst("iframe")
+                        ?.getIframeAttr()
+                        ?.let { httpsify(it) } ?: return@amap
+                    
+                    processIframe(server, subtitleCallback, callback)
+                } catch (_: Exception) {}
+            }
+        }
+
+        document.select("div.gmr-embed-responsive iframe, .player-embed iframe").mapNotNull { it.getIframeAttr() }
+            .forEach { iframe ->
+                processIframe(httpsify(iframe), subtitleCallback, callback)
+            }
+
         return true
     }
 
@@ -213,14 +233,15 @@ class Ngefilm : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
+        val currentDirectUrl = directUrl ?: mainUrl
         if (url.contains("rpmlive") || url.contains("playerngefilm") || url.contains("api/v1/video") || url.contains("ngefilm")) {
             try {
                 val videoId = Regex("[?&]id=([a-zA-Z0-9_-]+)").find(url)?.groupValues?.get(1)
                     ?: Regex("/(?:v|embed|video)/([a-zA-Z0-9_-]+)").find(url)?.groupValues?.get(1)
                     ?: url.substringAfterLast("/").substringBefore("?")
 
-                val host = URI(url).host
-                val refererHost = URI(directUrl ?: mainUrl).host
+                val host = try { URI(url).host } catch (_: Exception) { null } ?: "playerngefilm21.rpmlive.online"
+                val refererHost = try { URI(currentDirectUrl).host } catch (_: Exception) { null } ?: "new39.ngefilm.site"
 
                 val apiUrl = if (url.contains("/api/v1/video")) {
                     url
@@ -229,8 +250,8 @@ class Ngefilm : MainAPI() {
                 }
 
                 val headers = mapOf(
-                    "Referer" to "$directUrl/",
-                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Referer" to "https://$refererHost/",
+                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                     "Accept" to "application/json, text/javascript, */*; q=0.01",
                     "X-Requested-With" to "XMLHttpRequest"
                 )
@@ -254,7 +275,7 @@ class Ngefilm : MainAPI() {
                             M3u8Helper.generateM3u8(
                                 source = this.name,
                                 streamUrl = streamUrl,
-                                referer = "$directUrl/",
+                                referer = "https://$refererHost/",
                                 headers = headers
                             ).forEach(callback)
                         } else {
@@ -263,9 +284,12 @@ class Ngefilm : MainAPI() {
                                     source = this.name,
                                     name = this.name,
                                     url = streamUrl,
-                                   // referer = "$directUrl/",
-                                   // quality = Qualities.Unknown.value
-                                )
+                                    quality = Qualities.Unknown.value
+                                ) {
+                                    this.referer = "https://$refererHost/"
+                                    this.headers = headers
+                                    this.isM3u8 = false
+                                }
                             )
                         }
                     }
@@ -276,7 +300,7 @@ class Ngefilm : MainAPI() {
             }
         }
 
-        loadExtractor(url, "$directUrl/", subtitleCallback, callback)
+        loadExtractor(url, "$currentDirectUrl/", subtitleCallback, callback)
     }
 
     private fun Element.getImageAttr(): String {
@@ -300,6 +324,10 @@ class Ngefilm : MainAPI() {
     }
 
     private fun getBaseUrl(url: String): String {
-        return URI(url).let { "${it.scheme}://${it.host}" }
+        return try {
+            URI(url).let { "${it.scheme}://${it.host}" }
+        } catch (_: Exception) {
+            url
+        }
     }
 }
