@@ -2,6 +2,7 @@ package com.ngefilm
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
+import com.lagradost.cloudstream3.ExtractorLink
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import org.jsoup.nodes.Element
@@ -219,137 +220,93 @@ class Ngefilm : MainAPI() {
 
 
 
-    override suspend fun loadLinks(
-        data:String,
-        isCasting:Boolean,
-        subtitleCallback:(SubtitleFile)->Unit,
-        callback:(ExtractorLink)->Unit
-
-    ):Boolean {
-
-
-        val document =
-            app.get(data).document
+override suspend fun loadLinks(
+    data: String,
+    isCasting: Boolean,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+): Boolean {
 
 
+    val document = app.get(data).document
 
-        /*
-        Ambil iframe player
-        */
 
-        val iframe =
-            document
-                .selectFirst("iframe")
-                ?.attr("src")
-                ?: return false
+    // Cari iframe player
+    val iframe = document
+        .selectFirst("iframe")
+        ?.attr("src")
+        ?: return false
 
 
 
-        val playerUrl =
-            fixUrl(iframe)
+    val playerUrl = fixUrl(iframe)
 
 
 
-
-        /*
-        Ambil HTML/API player
-        */
-
-        val response =
-            app.get(
-                playerUrl,
-                referer = data,
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT
-                )
-            ).text
+    // Ambil halaman player
+    val playerResponse = app.get(
+        playerUrl,
+        referer = data,
+        headers = mapOf(
+            "User-Agent" to USER_AGENT
+        )
+    ).text
 
 
 
+    // Cari m3u8
+    var m3u8 = Regex(
+        """https?://[^"'\\ ]+\.m3u8[^"'\\ ]*"""
+    )
+        .find(playerResponse)
+        ?.value
 
 
-        /*
-        Cari HLS m3u8
-        */
 
-        var m3u8 =
-            Regex(
-                """https?://[^"'\\ ]+\.m3u8[^"'\\ ]*"""
+    // Fallback jika URL ada di API JSON
+    if (m3u8 == null) {
+
+        val apiResponse = app.get(
+            playerUrl,
+            referer = data,
+            headers = mapOf(
+                "Referer" to data,
+                "User-Agent" to USER_AGENT
             )
-            .find(response)
+        ).text
+
+
+        m3u8 = Regex(
+            """https?://[^"'\\ ]+master\.m3u8[^"'\\ ]*"""
+        )
+            .find(apiResponse)
             ?.value
+    }
+
+
+
+    if (m3u8 == null)
+        return false
 
 
 
 
-        /*
-        Fallback jika player memakai JSON
-        */
+    callback(
+        newExtractorLink(
+            source = "Ngefilm21",
+            name = "Morencius",
+            url = m3u8
+        ) {
 
-        if(m3u8 == null){
+            this.referer = "https://morencius.com/"
 
-
-            val api =
-                app.get(
-                    playerUrl,
-                    headers = mapOf(
-                        "Referer" to data,
-                        "User-Agent" to USER_AGENT
-                    )
-                )
-                .text
-
-
-
-            m3u8 =
-                Regex(
-                    """https?://[^"'\\ ]+master\.m3u8[^"'\\ ]*"""
-                )
-                .find(api)
-                ?.value
+            this.quality = 720
 
         }
+    )
 
 
-
-
-        if(m3u8 == null)
-            return false
-
-
-
-
-
-
-        callback(
-
-            newExtractorLink(
-
-                source = "Ngefilm21",
-
-                name = "Morencius",
-
-                url = m3u8,
-
-                type = ExtractorLinkType.M3U8
-
-            ){
-
-                this.referer =
-                    "https://morencius.com/"
-
-
-                this.quality =
-                    720
-
-            }
-
-        )
-
-
-
-        return true
-
-    }
+    return true
+}
 
 }
