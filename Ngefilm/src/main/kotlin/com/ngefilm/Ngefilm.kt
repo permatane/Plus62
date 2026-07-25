@@ -205,25 +205,6 @@ private fun Element.toSearchResult(): SearchResponse? {
     ): Boolean {
 
         val document = app.get(data).document
-
-        // Player update: ambil direct HLS dari tag video/source player baru
-        document.select("video source[src], video[src]").forEach { video ->
-            val streamUrl = video.attr("abs:src").ifBlank { video.attr("src") }
-            if (streamUrl.contains(".m3u8")) {
-                callback(
-                    ExtractorLink(
-                        "Ngefilm21 HLS",
-                        "Ngefilm21",
-                        streamUrl,
-                        data,
-                        Qualities.Unknown.value,
-                        true
-                    )
-                )
-            }
-        }
-
-        // Fallback player lama (iframe)
         val id = document.selectFirst("div#muvipro_player_content_id")?.attr("data-id")
 
         if (id.isNullOrEmpty()) {
