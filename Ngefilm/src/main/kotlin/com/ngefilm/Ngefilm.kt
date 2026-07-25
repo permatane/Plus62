@@ -17,7 +17,7 @@ import org.jsoup.nodes.Element
 
 class Ngefilm : MainAPI() {
 
-    override var mainUrl = "https://ngefilm.live"
+    override var mainUrl = "https://new39.ngefilm.site"
     private var directUrl: String? = null
     override var name = "Ngefilm21"
     override val hasMainPage = true
