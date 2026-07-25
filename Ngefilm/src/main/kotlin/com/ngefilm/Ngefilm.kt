@@ -265,10 +265,7 @@ class Ngefilm : MainAPI() {
                                     url = streamUrl,
                                     referer = "$directUrl/",
                                     quality = Qualities.Unknown.value
-                                ) {
-                                    this.isM3u8 = false
-                                    this.headers = headers
-                                }
+                                )
                             )
                         }
                     }
