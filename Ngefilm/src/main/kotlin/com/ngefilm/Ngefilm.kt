@@ -284,7 +284,7 @@ class Ngefilm : MainAPI() {
                                     source = this.name,
                                     name = this.name,
                                     url = streamUrl,
-                                    quality = Qualities.Unknown.value
+                                  //  quality = Qualities.Unknown.value
                                 ) {
                                     this.headers = headers
                                     this.isM3u8 = false
