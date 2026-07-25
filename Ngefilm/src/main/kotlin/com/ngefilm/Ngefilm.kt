@@ -2,8 +2,7 @@ package com.ngefilm
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
-import com.lagradost.cloudstream3.ExtractorLink
-import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import org.jsoup.nodes.Element
 
