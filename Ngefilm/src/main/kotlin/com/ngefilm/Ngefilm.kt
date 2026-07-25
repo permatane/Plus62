@@ -4,35 +4,26 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import com.lagradost.cloudstream3.MainAPI
-import com.lagradost.cloudstream3.SearchResponse
-import com.lagradost.cloudstream3.TvType
-import com.lagradost.cloudstream3.mainPageOf
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.M3u8Helper
-import com.lagradost.cloudstream3.utils.Qualities
-import com.lagradost.cloudstream3.utils.httpsify
-import com.lagradost.cloudstream3.utils.loadExtractor
-import com.lagradost.cloudstream3.toNewSearchResponseList
-import com.lagradost.cloudstream3.utils.* // <-- Ganti dengan wildcard ini agar newExtractorLink ter-import
-import com.lagradost.cloudstream3.toNewSearchResponseList
+import com.lagradost.cloudstream3.utils.*
 import java.net.URI
 import org.jsoup.nodes.Element
 
 class Ngefilm : MainAPI() {
-
     override var mainUrl = "https://ngefilm.live"
     private var directUrl: String? = null
     override var name = "Ngefilm21"
     override val hasMainPage = true
     override var lang = "id"
-    override val supportedTypes =
-            setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
+    override val supportedTypes = setOf(
+        TvType.Movie,
+        TvType.TvSeries,
+        TvType.Anime,
+        TvType.AsianDrama
+    )
 
-	private suspend fun updateToLatestDomain() {
+    private suspend fun updateToLatestDomain() {
         if (mainUrl.contains("ngefilm.live")) {
             val doc = app.get(mainUrl).document
-            // Cari link domain baru 
             val newLink = doc.selectFirst("a[href*='ngefilm'], strong a, p a[href^='https://']")?.attr("href")
             if (!newLink.isNullOrBlank() && newLink.contains("ngefilm")) {
                 mainUrl = newLink.substringBeforeLast("/", "").substringBefore("?")
@@ -40,141 +31,120 @@ class Ngefilm : MainAPI() {
         }
     }
 
-    override val mainPage =
-            mainPageOf(
-       		        "/page/%d/?s&search=advanced&post_type=movie&index&orderby&genre&movieyear&country&quality=" to "Movies Terbaru",
-       //           "" to "Movies Terbaru", 
-				    "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=&movieyear=&country=&quality=" to "Series Terbaru",
-                    "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=drakor&movieyear=&country=&quality=" to "Series Korea",
-                    "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=&movieyear=&country=indonesia&quality=" to "Series Indonesia",
+    override val mainPage = mainPageOf(
+        "/page/%d/?s&search=advanced&post_type=movie&index&orderby&genre&movieyear&country&quality=" to "Movies Terbaru",
+        "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=&movieyear=&country=&quality=" to "Series Terbaru",
+        "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=drakor&movieyear=&country=&quality=" to "Series Korea",
+        "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=&movieyear=&country=indonesia&quality=" to "Series Indonesia",
+        "country/usa/page/%d/" to "Film Barat",
+        "country/indonesia/page/%d/" to "Film Indonesia",
+        "country/malaysia/page/%d/" to "Film Malaysia",
+        "country/philippines/page/%d/" to "Film Philippines",
+        "country/japan/page/%d/" to "Film Jepang",
+        "country/china/page/%d/" to "Film China",
+    )
 
-					"country/usa/page/%d/" to "Film Barat",
-                    "country/indonesia/page/%d/" to "Film Indonesia",
-					"country/malaysia/page/%d/" to "Film Malaysia",
-					"country/philippines/page/%d/" to "Film Philippines",
-					"country/japan/page/%d/" to "Film Jepang",
-					"country/china/page/%d/" to "Film China",
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        updateToLatestDomain()
+        val data = request.data.format(page)
+        val document = app.get("$mainUrl/$data").document
+        val home = document.select("article.item").mapNotNull { it.toSearchResult() }
+        return newHomePageResponse(request.name, home)
+    }
 
-            )
+    private fun Element.toSearchResult(): SearchResponse? {
+        val title = this.selectFirst("h2.entry-title > a")?.text()?.trim() ?: return null
+        val href = fixUrl(this.selectFirst("a")!!.attr("href"))
+        val posterUrl = fixUrlNull(this.selectFirst("a > img")?.getImageAttr()).fixImageQuality()
+        val quality = this.select("div.gmr-qual, div.gmr-quality-item > a")
+            .text().trim().replace("-", "")
+        val ratingText = this.selectFirst("div.gmr-rating-item")?.ownText()?.trim()
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToLatestDomain()
-    val data = request.data.format(page)
-    val document = app.get("$mainUrl/$data").document
-    val home = document.select("article.item").mapNotNull { it.toSearchResult() }
-    return newHomePageResponse(request.name, home)
-}
-
-private fun Element.toSearchResult(): SearchResponse? {
-    val title = this.selectFirst("h2.entry-title > a")?.text()?.trim() ?: return null
-    val href = fixUrl(this.selectFirst("a")!!.attr("href"))
-    val posterUrl = fixUrlNull(this.selectFirst("a > img")?.getImageAttr()).fixImageQuality()
-
-    val quality = this.select("div.gmr-qual, div.gmr-quality-item > a")
-        .text().trim().replace("-", "")
-
-    // ðŸ”¹ Ambil rating (contoh: "5.9")
-    val ratingText = this.selectFirst("div.gmr-rating-item")?.ownText()?.trim()
-
-    return if (quality.isEmpty()) {
-        val episode = Regex("Episode\\s?([0-9]+)")
-            .find(title)
-            ?.groupValues?.getOrNull(1)
-            ?.toIntOrNull()
-            ?: this.select("div.gmr-numbeps > span").text().toIntOrNull()
-
-        newAnimeSearchResponse(title, href, TvType.TvSeries) {
-            this.posterUrl = posterUrl
-            addSub(episode)
-            this.score = Score.from10(ratingText?.toDoubleOrNull())
-        }
-    } else {
-        newMovieSearchResponse(title, href, TvType.Movie) {
-            this.posterUrl = posterUrl
-            addQuality(quality)
-
-            // ðŸ”¹ Tambahkan score rating
-            this.score = Score.from10(ratingText?.toDoubleOrNull())
+        return if (quality.isEmpty()) {
+            val episode = Regex("Episode\\s?([0-9]+)")
+                .find(title)
+                ?.groupValues?.getOrNull(1)
+                ?.toIntOrNull()
+                ?: this.select("div.gmr-numbeps > span").text().toIntOrNull()
+            newAnimeSearchResponse(title, href, TvType.TvSeries) {
+                this.posterUrl = posterUrl
+                addSub(episode)
+                this.score = Score.from10(ratingText?.toDoubleOrNull())
+            }
+        } else {
+            newMovieSearchResponse(title, href, TvType.Movie) {
+                this.posterUrl = posterUrl
+                addQuality(quality)
+                this.score = Score.from10(ratingText?.toDoubleOrNull())
+            }
         }
     }
-}    
-
 
     override suspend fun search(query: String, page: Int): SearchResponseList? {
-		val document = app.get("$mainUrl/page/$page/?s=$query&post_type[]=post&post_type[]=tv", timeout = 50L).document
-		val results = document.select("article.has-post-thumbnail").mapNotNull { it.toSearchResult() }.toNewSearchResponseList()
-		return results
-	}
+        val document = app.get("$mainUrl/page/$page/?s=$query&post_type[]=post&post_type[]=tv", timeout = 50L).document
+        val results = document.select("article.has-post-thumbnail").mapNotNull { it.toSearchResult() }.toNewSearchResponseList()
+        return results
+    }
 
-        private fun Element.toRecommendResult(): SearchResponse? {
+    private fun Element.toRecommendResult(): SearchResponse? {
         val title = this.selectFirst("a > span.idmuvi-rp-title")?.text()?.trim() ?: return null
         val href = this.selectFirst("a")!!.attr("href")
         val posterUrl = fixUrlNull(this.selectFirst("a > img")?.getImageAttr().fixImageQuality())
-        return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = posterUrl }
+        return newMovieSearchResponse(title, href, TvType.Movie) {
+            this.posterUrl = posterUrl
+        }
     }
 
     override suspend fun load(url: String): LoadResponse {
         val fetch = app.get(url)
         directUrl = getBaseUrl(fetch.url)
         val document = fetch.document
-
-        val title =
-                document.selectFirst("h1.entry-title")
-                        ?.text()
-                        ?.substringBefore("Season")
-                        ?.substringBefore("Episode")
-                        ?.trim()
-                        .toString()
-        val poster =
-                fixUrlNull(document.selectFirst("figure.pull-left > img")?.getImageAttr())
-                        ?.fixImageQuality()
-
+        val title = document.selectFirst("h1.entry-title")
+            ?.text()
+            ?.substringBefore("Season")
+            ?.substringBefore("Episode")
+            ?.trim()
+            .toString()
+        val poster = fixUrlNull(document.selectFirst("figure.pull-left > img")?.getImageAttr())
+            ?.fixImageQuality()
         val tags = document.select("strong:contains(Genre) ~ a").eachText()
-
-        val year =
-                document.select("div.gmr-moviedata strong:contains(Year:) > a")
-                        .text()
-                        .trim()
-                        .toIntOrNull()
+        val year = document.select("div.gmr-moviedata strong:contains(Year:) > a")
+            .text()
+            .trim()
+            .toIntOrNull()
         val tvType = if (url.contains("/tv/")) TvType.TvSeries else TvType.Movie
         val description = document.selectFirst("div[itemprop=description] > p")?.text()?.trim()
         val trailer = document.selectFirst("ul.gmr-player-nav li a.gmr-trailer-popup")?.attr("href")
-        val rating =
-                document.selectFirst("div.gmr-meta-rating > span[itemprop=ratingValue]")
-                        ?.text()?.trim()
-        val actors =
-                document.select("div.gmr-moviedata").last()?.select("span[itemprop=actors]")?.map {
-                    it.select("a").text()
-                }
+        val rating = document.selectFirst("div.gmr-meta-rating > span[itemprop=ratingValue]")
+            ?.text()?.trim()
+        val actors = document.select("div.gmr-moviedata").last()?.select("span[itemprop=actors]")?.map { it.select("a").text() }
         val duration = document.selectFirst("div.gmr-moviedata span[property=duration]")
-                    ?.text()
-                    ?.replace(Regex("\\D"), "")
-                    ?.toIntOrNull()
-        val recommendations =
-                document.select("div.idmuvi-rp ul li").mapNotNull { it.toRecommendResult() }
+            ?.text()
+            ?.replace(Regex("\\D"), "")
+            ?.toIntOrNull()
+        val recommendations = document.select("div.idmuvi-rp ul li").mapNotNull { it.toRecommendResult() }
 
         return if (tvType == TvType.TvSeries) {
-            val episodes =
-                    document.select("div.vid-episodes a, div.gmr-listseries a")
-                            .map { eps ->
-                                val href = fixUrl(eps.attr("href"))
-                                val name = eps.text()
-                                val episode =
-                                        name.split(" ")
-                                                .lastOrNull()
-                                                ?.filter { it.isDigit() }
-                                                ?.toIntOrNull()
-                                val season =
-                                        name.split(" ")
-                                                .firstOrNull()
-                                                ?.filter { it.isDigit() }
-                                                ?.toIntOrNull()                               
-                                newEpisode(href) {
-                                    this.name = name
-                                    this.episode = episode
-                                    this.season = if (name.contains(" ")) season else null
-                                }
-                            }
-                            .filter { it.episode != null }
+            val episodes = document.select("div.vid-episodes a, div.gmr-listseries a")
+                .map { eps ->
+                    val href = fixUrl(eps.attr("href"))
+                    val name = eps.text()
+                    val episode = name.split(" ")
+                        .lastOrNull()
+                        ?.filter { it.isDigit() }
+                        ?.toIntOrNull()
+                    val season = name.split(" ")
+                        .firstOrNull()
+                        ?.filter { it.isDigit() }
+                        ?.toIntOrNull()
+                    newEpisode(href) {
+                        this.name = name
+                        this.episode = episode
+                        this.season = if (name.contains(" ")) season else null
+                    }
+                }
+                .filter { it.episode != null }
+
             newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
                 this.year = year
@@ -201,7 +171,7 @@ private fun Element.toSearchResult(): SearchResponse? {
         }
     }
 
-override suspend fun loadLinks(
+    override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -253,7 +223,7 @@ override suspend fun loadLinks(
 
                 val host = URI(url).host
                 val refererHost = URI(directUrl ?: mainUrl).host
-                
+
                 // Bangun endpoint API persis sesuai dengan struktur request method GET
                 val apiUrl = if (url.contains("/api/v1/video")) {
                     url
@@ -269,7 +239,7 @@ override suspend fun loadLinks(
                 )
 
                 val responseText = app.get(apiUrl, headers = headers).text
-                
+
                 // Ekstrak URL stream langsung (.m3u8 / .mp4) dari response text
                 val streamUrls = Regex("https?://[^\"'\\\\\\s]+?\\.(?:m3u8|mp4)[^\"'\\\\\\s]*").findAll(responseText)
                     .map { it.value.replace("\\/", "/") }
@@ -316,10 +286,6 @@ override suspend fun loadLinks(
         // Fallback ke extractor standar Cloudstream (YouTube, StreamSB, Doodstream, dll)
         loadExtractor(url, "$directUrl/", subtitleCallback, callback)
     }
-        }
-
-        return true
-    }
 
     private fun Element.getImageAttr(): String {
         return when {
@@ -332,7 +298,7 @@ override suspend fun loadLinks(
 
     private fun Element?.getIframeAttr(): String? {
         return this?.attr("data-litespeed-src").takeIf { it?.isNotEmpty() == true }
-                ?: this?.attr("src")
+            ?: this?.attr("src")
     }
 
     private fun String?.fixImageQuality(): String? {
