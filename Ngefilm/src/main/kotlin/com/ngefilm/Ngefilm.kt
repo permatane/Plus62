@@ -286,7 +286,6 @@ class Ngefilm : MainAPI() {
                                     url = streamUrl,
                                     quality = Qualities.Unknown.value
                                 ) {
-                                    this.referer = "https://$refererHost/"
                                     this.headers = headers
                                     this.isM3u8 = false
                                 }
