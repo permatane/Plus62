@@ -213,10 +213,8 @@ class Ngefilm : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        // Cek apakah URL merupakan custom player Ngefilm / rpmlive
         if (url.contains("rpmlive") || url.contains("playerngefilm") || url.contains("api/v1/video") || url.contains("ngefilm")) {
             try {
-                // Ekstrak Video ID dari URL iframe atau embed
                 val videoId = Regex("[?&]id=([a-zA-Z0-9_-]+)").find(url)?.groupValues?.get(1)
                     ?: Regex("/(?:v|embed|video)/([a-zA-Z0-9_-]+)").find(url)?.groupValues?.get(1)
                     ?: url.substringAfterLast("/").substringBefore("?")
@@ -224,7 +222,6 @@ class Ngefilm : MainAPI() {
                 val host = URI(url).host
                 val refererHost = URI(directUrl ?: mainUrl).host
 
-                // Bangun endpoint API persis sesuai dengan struktur request method GET
                 val apiUrl = if (url.contains("/api/v1/video")) {
                     url
                 } else {
@@ -240,12 +237,10 @@ class Ngefilm : MainAPI() {
 
                 val responseText = app.get(apiUrl, headers = headers).text
 
-                // Ekstrak URL stream langsung (.m3u8 / .mp4) dari response text
                 val streamUrls = Regex("https?://[^\"'\\\\\\s]+?\\.(?:m3u8|mp4)[^\"'\\\\\\s]*").findAll(responseText)
                     .map { it.value.replace("\\/", "/") }
                     .toSet()
 
-                // Ekstrak URL dari key JSON umum (file, url, src, stream, link)
                 val urlRegex = Regex("[\"'](?:file|url|src|data|stream|link)[\"']\\s*:\\s*[\"'](https?://[^\"']+)[\"']")
                 val extractedFromKeys = urlRegex.findAll(responseText)
                     .map { it.groupValues[1].replace("\\/", "/") }
@@ -269,10 +264,11 @@ class Ngefilm : MainAPI() {
                                     name = this.name,
                                     url = streamUrl,
                                     referer = "$directUrl/",
-                                    quality = Qualities.Unknown.value,
-                                    isM3u8 = false,
-                                    headers = headers
-                                )
+                                    quality = Qualities.Unknown.value
+                                ).apply {
+                                    this.headers = headers
+                                    this.isM3u8 = false
+                                }
                             )
                         }
                     }
@@ -283,7 +279,6 @@ class Ngefilm : MainAPI() {
             }
         }
 
-        // Fallback ke extractor standar Cloudstream (YouTube, StreamSB, Doodstream, dll)
         loadExtractor(url, "$directUrl/", subtitleCallback, callback)
     }
 
