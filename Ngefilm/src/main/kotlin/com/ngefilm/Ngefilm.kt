@@ -212,101 +212,45 @@ class Ngefilm : MainAPI() {
 
     }
 
-
-
-
-
-
-
-
-
 override suspend fun loadLinks(
     data: String,
     isCasting: Boolean,
     subtitleCallback: (SubtitleFile) -> Unit,
     callback: (ExtractorLink) -> Unit
 ): Boolean {
-
-
-    val document = app.get(data).document
-
-
-    // Cari iframe player
-    val iframe = document
-        .selectFirst("iframe")
-        ?.attr("src")
-        ?: return false
-
-
-
-    val playerUrl = fixUrl(iframe)
-
-
-
-    // Ambil halaman player
-    val playerResponse = app.get(
-        playerUrl,
-        referer = data,
-        headers = mapOf(
-            "User-Agent" to USER_AGENT
-        )
-    ).text
-
-
-
-    // Cari m3u8
-    var m3u8 = Regex(
-        """https?://[^"'\\ ]+\.m3u8[^"'\\ ]*"""
-    )
-        .find(playerResponse)
-        ?.value
-
-
-
-    // Fallback jika URL ada di API JSON
-    if (m3u8 == null) {
-
-        val apiResponse = app.get(
-            playerUrl,
-            referer = data,
-            headers = mapOf(
-                "Referer" to data,
-                "User-Agent" to USER_AGENT
+        val document = app.get(data).document
+        val href=document.selectFirst("meta[itemprop=embedURL]")?.attr("content")
+        if (href!=null)
+        {
+            val doc= app.get(href, referer = mainUrl).text
+            val video_id=Regex("video_id\\s*=\\s*['\"`](\\w+)['\"`];").find(doc)?.groupValues?.get(1).toString()
+            val m3u8url=Regex("m3u8_loader_url\\s*=\\s*['\"`]([^'\"`]+)['\"`];").find(doc)?.groupValues?.get(1).toString()
+            val regex = Regex("""^(?!.*//file).*?file:\s*["']([^"']*\.vtt)["']""", RegexOption.MULTILINE)
+            val matches = regex.findAll(doc)
+            for (match in matches) {
+                val subtitle = match.groups[1]?.value.toString()
+                if (subtitle.contains("subtitles"))
+                {
+                    subtitleCallback.invoke(
+                        SubtitleFile(
+                            "English",  // Use label for the name
+                            subtitle     // Use extracted URL
+                        )
+                    )
+                }
+            }
+            callback.invoke(
+                newExtractorLink(
+                    source = this.name,
+                    name = this.name,
+                    url = "$m3u8url$video_id",
+                    type = ExtractorLinkType.M3U8
+                ) {
+                    this.referer = mainUrl
+                    this.quality = Qualities.Unknown.value
+                }
             )
-        ).text
-
-
-        m3u8 = Regex(
-            """https?://[^"'\\ ]+master\.m3u8[^"'\\ ]*"""
-        )
-            .find(apiResponse)
-            ?.value
-    }
-
-
-
-    if (m3u8 == null)
-        return false
-
-
-
-
-    callback(
-        newExtractorLink(
-            source = "Ngefilm21",
-            name = "Morencius",
-            url = m3u8
-        ) {
-
-            this.referer = "https://morencius.com/"
-
-            this.quality = 720
-
         }
-    )
-
-
-    return true
-}
-
+        return true
+    }
 }
