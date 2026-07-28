@@ -17,7 +17,7 @@ class MovieBox : MainAPI() {
     private val apiUrl = "https://filmboom.top" 
     private val homeApiUrl = "https://h5-api.aoneroom.com"
 
-    override var name = "Adimoviebox"
+    override var name = "Moviebox"
     override val hasMainPage = true
     override val hasQuickSearch = true
     override var lang = "id"
