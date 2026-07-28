@@ -12,8 +12,8 @@ import org.jsoup.nodes.Element
 import android.content.Context
 
 class Animasu : MainAPI() {
-    override var mainUrl = "https://v0.animasu.app"
-    override var name = "Animasu😸"
+    override var mainUrl = "https://v2.animasu.work"
+    override var name = "Animasu"
     override val hasMainPage = true
     override var lang = "id"
     override val hasDownloadSupport = true
