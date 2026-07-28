@@ -1,4 +1,4 @@
-package com.moviebox
+package com.MovieBox
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
@@ -10,7 +10,7 @@ import com.lagradost.nicehttp.RequestBodyTypes
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 
-class Moviebox : MainAPI() {
+class MovieBox : MainAPI() {
 
     override var mainUrl = "https://moviebox.ph"
     private val apiUrl = "https://fmoviesunblocked.net"
