@@ -11,14 +11,14 @@ import org.json.JSONObject
 import java.net.URI
 
 class LayarKaca : MainAPI() {
-    override var mainUrl              = "https://lk21.de"
+    override var mainUrl              = "https://tv12.lk21official.cc"
     override var name                 = "LayarKaca"
     override val hasMainPage          = true
     override var lang                 = "id"
     override val hasQuickSearch       = false
     override val supportedTypes       = setOf(TvType.Movie, TvType.TvSeries)
     //Movie, AnimeMovie, TvSeries, Cartoon, Anime, OVA, Torrent, Documentary, AsianDrama, Live, NSFW, Others, Music, AudioBook, CustomMedia, Audio, Podcast,
-    private var seriesUrl = "https://series.lk21.de"
+    private var seriesUrl = "https://tv6.nontondrama.my/"
 
     override val mainPage = mainPageOf(
         "${mainUrl}/populer"  to "Popular",
