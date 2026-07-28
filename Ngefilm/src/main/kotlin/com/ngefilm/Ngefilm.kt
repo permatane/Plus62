@@ -17,50 +17,48 @@ import org.jsoup.nodes.Element
 
 class Ngefilm : MainAPI() {
 
-    override var mainUrl = "https://new30.ngefilm.site"
-	private val mainUrlJson = "https://raw.githubusercontent.com/Asm0d3usX/CloudX/builds/Website.json"
+    override var mainUrl = "https://ngefilm.live"
     private var directUrl: String? = null
-    override var name = "Ngefilm"
+    override var name = "Ngefilm21"
     override val hasMainPage = true
     override var lang = "id"
-    override val supportedTypes = setOf(
-		TvType.Movie,
-		TvType.TvSeries,
-		TvType.Anime,
-		TvType.AsianDrama
-	)
+    override val supportedTypes =
+            setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-    override val mainPage = mainPageOf(
-		"year/2026/page/%d/" to "Terbaru",
-		"page/%d/?s=&search=advanced&post_type=tv" to "TV Series",
-		"Genre/action/page/%d/" to "Action",
-		"Genre/adventure/page/%d/" to "Adventure",
-		"Genre/animation/page/%d/" to "Animation",
-		"Genre/fantasy/page/%d/" to "Fantasy",
-		"country/japan/page/%d/" to "Japan",
-		"country/indonesia/page/%d/" to "Indonesia",
-		"country/philippines/page/%d/" to "Philippines"
-    )
-	
-	private suspend fun loadMainUrlIfNeeded() {
-		if (directUrl != null) return
-		val response = app.get(mainUrlJson).text
-		val json = JSONObject(response)
-		val array = json.optJSONArray("ngefilm")
-		val newUrl = array?.optString(0)?.removeSuffix("/")
-
-		if (!newUrl.isNullOrBlank()) {
-			mainUrl = newUrl
-			directUrl = newUrl
-		}
-	}
-	
-	override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-		loadMainUrlIfNeeded()
-        val document = app.get("$mainUrl/${request.data.format(page)}").document
-        val items = document.select("article.item-infinite").mapNotNull { it.toSearchResult() }
-        return newHomePageResponse(request.name, items)
+	private suspend fun updateToLatestDomain() {
+        if (mainUrl.contains("ngefilm.live")) {
+            val doc = app.get(mainUrl).document
+            // Cari link domain baru 
+            val newLink = doc.selectFirst("a[href*='ngefilm'], strong a, p a[href^='https://']")?.attr("href")
+            if (!newLink.isNullOrBlank() && newLink.contains("ngefilm")) {
+                mainUrl = newLink.substringBeforeLast("/", "").substringBefore("?")
+            }
+        }
     }
+
+    override val mainPage =
+            mainPageOf(
+       		        "/page/%d/?s&search=advanced&post_type=movie&index&orderby&genre&movieyear&country&quality=" to "Movies Terbaru",
+       //           "" to "Movies Terbaru", 
+				    "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=&movieyear=&country=&quality=" to "Series Terbaru",
+                    "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=drakor&movieyear=&country=&quality=" to "Series Korea",
+                    "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=&movieyear=&country=indonesia&quality=" to "Series Indonesia",
+
+					"country/usa/page/%d/" to "Film Barat",
+                    "country/indonesia/page/%d/" to "Film Indonesia",
+					"country/malaysia/page/%d/" to "Film Malaysia",
+					"country/philippines/page/%d/" to "Film Philippines",
+					"country/japan/page/%d/" to "Film Jepang",
+					"country/china/page/%d/" to "Film China",
+
+            )
+	
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToLatestDomain()
+    val data = request.data.format(page)
+    val document = app.get("$mainUrl/$data").document
+    val home = document.select("article.item").mapNotNull { it.toSearchResult() }
+    return newHomePageResponse(request.name, home)
+}
 
 	private fun Element.toSearchResult(): SearchResponse? {
 		val title = this.selectFirst("h2.entry-title > a")?.text()?.trim() ?: return null
