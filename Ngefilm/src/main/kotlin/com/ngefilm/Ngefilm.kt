@@ -41,4 +41,9 @@ class Ngefilm : MainAPI() {
                     "country/china/page/%d/" to "Film China",
 
             )
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse { updateToLatestDomain()
+    val data = request.data.format(page)
+    val document = app.get("$mainUrl/$data").document
+    val home = document.select("article.item").mapNotNull { it.toSearchResult() }
+    return newHomePageResponse(request.name, home)
 }
