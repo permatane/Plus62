@@ -77,7 +77,7 @@ class MovieBox : MainAPI() {
         val tvType = if (subject?.subjectType == 2) TvType.TvSeries else TvType.Movie
         val description = subject?.description
         val trailer = subject?.trailer?.videoAddress?.url
-        val score = subject?.imdbRatingValue?.toFloatOrNull()?.let { (it * 10).toInt() }
+      //  val score = subject?.imdbRatingValue?.toFloatOrNull()?.let { (it * 10).toInt() }
         val actors = doc?.stars?.mapNotNull { cast ->
             ActorData(Actor(cast.name ?: return@mapNotNull null, cast.avatarUrl), roleString = cast.character)
         }?.distinctBy { it.actor }
@@ -97,7 +97,7 @@ class MovieBox : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.score = score
+            //    this.score = score
                 this.actors = actors
                 this.recommendations = recommendations
                 addTrailer(trailer, addRaw = true)
@@ -108,7 +108,7 @@ class MovieBox : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.score = score
+            //    this.score = score
                 this.actors = actors
                 this.recommendations = recommendations
                 addTrailer(trailer, addRaw = true)
@@ -180,7 +180,7 @@ class MovieBox : MainAPI() {
         @JsonProperty("trailer") val trailer: Trailer? = null,
         @JsonProperty("detailPath") val detailPath: String? = null
     ) {
-        fun toSearchResponse(provider: Moviebox): SearchResponse {
+        fun toSearchResponse(provider: MovieBox): SearchResponse {
             return provider.newMovieSearchResponse(title ?: "", subjectId!!, if (subjectType == 1) TvType.Movie else TvType.TvSeries, false) {
                 this.posterUrl = cover?.url
             }
