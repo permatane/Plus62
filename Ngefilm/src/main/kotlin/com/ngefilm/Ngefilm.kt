@@ -46,4 +46,5 @@ class Ngefilm : MainAPI() {
     val document = app.get("$mainUrl/$data").document
     val home = document.select("article.item").mapNotNull { it.toSearchResult() }
     return newHomePageResponse(request.name, home)
+    }
 }
