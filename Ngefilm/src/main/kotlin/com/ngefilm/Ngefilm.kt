@@ -45,6 +45,6 @@ class Ngefilm : MainAPI() {
     val data = request.data.format(page)
     val document = app.get("$mainUrl/$data").document
 //    val home = document.select("article.item").mapNotNull { it.toSearchResult() }
-    return newHomePageResponse(request.name, home)
+//   return newHomePageResponse(request.name, home)
     }
 }
