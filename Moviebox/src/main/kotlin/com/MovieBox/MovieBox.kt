@@ -301,7 +301,7 @@ data class Items(
     @JsonProperty("trailer") val trailer: Trailer? = null,
     @JsonProperty("detailPath") val detailPath: String? = null,
 ) {
-    fun toSearchResponse(provider: Adimoviebox): SearchResponse {
+    fun toSearchResponse(provider: MovieBox): SearchResponse {
         val url = "${provider.mainUrl}/detail/${subjectId}"
         val posterImage = cover?.url
 
