@@ -11,12 +11,9 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 
 class Moviebox : MainAPI() {
-    override var mainUrl = "https://themoviebox.org"
-    
-    // API DEFAULT
-    private val apiUrl = "https://filmboom.top" 
+    override var mainUrl = "https://themoviebox.org" // API DEFAULT
+    private val apiUrl = "https://filmboom.top"
     private val homeApiUrl = "https://h5-api.aoneroom.com"
-
     override var name = "Moviebox"
     override val hasMainPage = true
     override val hasQuickSearch = true
@@ -37,14 +34,20 @@ class Moviebox : MainAPI() {
     // FUNGSI SAKTI: Switch Header Otomatis (LokLok vs FilmBoom)
     private fun getDynamicHeaders(isLokLok: Boolean): Map<String, String> {
         return baseHeaders + if (isLokLok) {
-            mapOf("Origin" to "https://lok-lok.cc", "Referer" to "https://lok-lok.cc/")
+            mapOf(
+                "Origin" to "https://lok-lok.cc",
+                "Referer" to "https://lok-lok.cc/"
+            )
         } else {
-            mapOf("Origin" to "https://filmboom.top", "Referer" to "https://filmboom.top/")
+            mapOf(
+                "Origin" to "https://filmboom.top",
+                "Referer" to "https://filmboom.top/"
+            )
         }
     }
 
     override val mainPage = mainPageOf(
-        "home" to "Home", // Tambahkan Home default
+        "home" to "Home",
         "5283462032510044280" to "Indonesian Drama",
         "6528093688173053896" to "Indonesian Movies",
         "5848753831881965888" to "Indo Horror",
@@ -54,30 +57,22 @@ class Moviebox : MainAPI() {
         "3058742380078711608" to "Disney",
         "8449223314756747760" to "Pinoy Drama",
         "606779077307122552" to "Pinoy Movie",
-        "872031290915189720" to "Bad Ending Romance" 
+        "872031290915189720" to "Bad Ending Romance"
     )
 
     @Suppress("DEPRECATION")
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
         val id = request.data
-        
-        // Logika: Jika Home, pakai URL default, jika kategori pakai ID
         val targetUrl = if (request.name == "Home") {
-            "$homeApiUrl/wefeed-h5api-bff/ranking-list/content?id=5283462032510044280&page=$page&perPage=12" // Default ke Indo Drama dulu biar rame
+            "$homeApiUrl/wefeed-h5api-bff/ranking-list/content?id=5283462032510044280&page=$page&perPage=12"
         } else {
             "$homeApiUrl/wefeed-h5api-bff/ranking-list/content?id=$id&page=$page&perPage=12"
         }
-        
         val response = app.get(targetUrl).parsedSafe<Media>()
         val data = response?.data
         val listFilm = data?.subjectList ?: data?.items
-
         if (listFilm.isNullOrEmpty()) throw ErrorLoadingException("Data Kosong")
-
-        val home = listFilm.mapNotNull { item ->
-            item.toSearchResponse(this)
-        }
-
+        val home = listFilm.mapNotNull { item -> item.toSearchResponse(this) }
         return newHomePageResponse(request.name, home)
     }
 
@@ -91,31 +86,22 @@ class Moviebox : MainAPI() {
             "subjectType" to "0"
         )
         val requestBody = bodyMap.toJson().toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
-
         val response = app.post(url, requestBody = requestBody).parsedSafe<Media>()
         val items = response?.data?.items
-
-        return items?.mapNotNull { it.toSearchResponse(this) } 
-            ?: throw ErrorLoadingException("Pencarian tidak ditemukan.")
+        return items?.mapNotNull { it.toSearchResponse(this) } ?: throw ErrorLoadingException("Pencarian tidak ditemukan.")
     }
 
     @Suppress("DEPRECATION")
     override suspend fun load(url: String): LoadResponse? {
-        // DETEKSI LOKLOK
         val isLokLok = url.contains("lok-lok.cc")
         val headers = getDynamicHeaders(isLokLok)
-        
-        // Regex untuk ambil ID dari URL yang aneh-aneh
         val regex = "(?:detail\\/|movies\\/)([^?]+)".toRegex()
         val matchResult = regex.find(url)
         val idFromUrl = matchResult?.groupValues?.get(1) ?: url.substringAfterLast("/")
 
-        // Panggil API Detail dengan Header yang Sesuai
         val response = app.get("$apiUrl/wefeed-h5-bff/web/subject/detail?subjectId=$idFromUrl", headers = headers)
             .parsedSafe<MediaDetail>()?.data
-        
         val subject = response?.subject ?: throw ErrorLoadingException("Detail Kosong")
-        
         val title = subject.title ?: "No Title"
         val poster = subject.cover?.url
         val description = subject.description
@@ -123,13 +109,11 @@ class Moviebox : MainAPI() {
         val tags = subject.genre?.split(",")?.map { it.trim() }
         val trailerUrl = subject.trailer?.videoAddress?.url
         val scoreObj = Score.from10(subject.imdbRatingValue)
-        
+
         val recommendations = app.get("$apiUrl/wefeed-h5-bff/web/subject/detail-rec?subjectId=$idFromUrl&page=1&perPage=12", headers = headers)
             .parsedSafe<Media>()?.data?.items?.mapNotNull { it.toSearchResponse(this) }
 
         val isSeries = subject.subjectType == 2
-        
-        // Simpan Source Flag (LOKLOK/MBOX)
         val sourceFlag = if (isLokLok) "LOKLOK" else "MBOX"
 
         if (isSeries) {
@@ -141,21 +125,16 @@ class Moviebox : MainAPI() {
                 } else {
                     season.allEp.split(",").mapNotNull { it.toIntOrNull() }
                 }
-
                 epList.forEach { epNum ->
-                    // Masukkan sourceFlag ke LoadData
                     val loadData = LoadData(subject.subjectId, seasonNum, epNum, subject.detailPath, sourceFlag).toJson()
-                    episodes.add(
-                        newEpisode(loadData) {
-                            this.name = "Episode $epNum"
-                            this.season = seasonNum
-                            this.episode = epNum
-                            this.posterUrl = poster
-                        }
-                    )
+                    episodes.add(newEpisode(loadData) {
+                        this.name = "Episode $epNum"
+                        this.season = seasonNum
+                        this.episode = epNum
+                        this.posterUrl = poster
+                    })
                 }
             }
-
             return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
                 this.year = year
@@ -165,7 +144,6 @@ class Moviebox : MainAPI() {
                 this.score = scoreObj
                 if (!trailerUrl.isNullOrEmpty()) addTrailer(trailerUrl)
             }
-
         } else {
             val loadData = LoadData(subject.subjectId, 0, 0, subject.detailPath, sourceFlag).toJson()
             return newMovieLoadResponse(title, url, TvType.Movie, loadData) {
@@ -187,17 +165,11 @@ class Moviebox : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-
         val media = parseJson<LoadData>(data)
-        
-        // Cek Source Flag dari Data
         val isLokLok = media.source == "LOKLOK"
         val headers = getDynamicHeaders(isLokLok)
         
-        val refererUrl = "$apiUrl/spa/videoPlayPage/movies/${media.detailPath}?id=${media.id}&type=/movie/detail&lang=en"
         val playUrl = "$apiUrl/wefeed-h5-bff/web/subject/play?subjectId=${media.id}&se=${media.season ?: 0}&ep=${media.episode ?: 0}"
-        
-        // Gunakan Headers yang sesuai (LokLok/Mbox)
         val response = app.get(playUrl, headers = headers).parsedSafe<Media>()
         val streams = response?.data?.streams
 
@@ -213,8 +185,7 @@ class Moviebox : MainAPI() {
                     videoUrl,
                     INFER_TYPE
                 ) {
-                    // Masukkan Headers Dinamis ke sini
-                    this.headers = headers 
+                    this.headers = headers
                     this.quality = qualityInt
                 }
             )
@@ -233,18 +204,17 @@ class Moviebox : MainAPI() {
             }
         }
 
-        return true
+        return !streams.isNullOrEmpty()
     }
 }
 
 // --- DATA CLASSES ---
-
 data class LoadData(
     val id: String? = null,
     val season: Int? = null,
     val episode: Int? = null,
     val detailPath: String? = null,
-    val source: String? = "MBOX" // Tambahan flag Source (Default MBOX)
+    val source: String? = "MBOX"
 )
 
 data class Media(
@@ -304,7 +274,6 @@ data class Items(
     fun toSearchResponse(provider: Moviebox): SearchResponse {
         val url = "${provider.mainUrl}/detail/${subjectId}"
         val posterImage = cover?.url
-
         return provider.newMovieSearchResponse(
             title ?: "No Title",
             url,
