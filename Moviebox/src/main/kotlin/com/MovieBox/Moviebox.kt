@@ -11,7 +11,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 
 class Moviebox : MainAPI() {
-    override var mainUrl = "https://themoviebox.org" // API DEFAULT
+    override var mainUrl = "https://moviebox.ph" // API DEFAULT
     private val apiUrl = "https://filmboom.top"
     private val homeApiUrl = "https://h5.aoneroom.com"
     override var name = "Moviebox"
