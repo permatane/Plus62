@@ -13,7 +13,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 class Moviebox : MainAPI() {
     override var mainUrl = "https://moviebox.ph" // API DEFAULT
     private val apiUrl = "https://filmboom.top"
-    private val homeApiUrl = "https://h5-api.aoneroom.com"
+    private val homeApiUrl = "https://api3.aoneroom.com"
     override var name = "Moviebox"
     override val hasMainPage = true
     override val hasQuickSearch = true
