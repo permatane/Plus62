@@ -8,7 +8,7 @@ import org.jsoup.Jsoup
 class Donghuaid : Anichin() {
 
     override var mainUrl = "https://donghuaid.live"
-    override var name = "Donghua Donghuaid"
+    override var name = "Donghua DonghuaID"
     override val hasMainPage = true
     override var lang = "id"
     override val hasDownloadSupport = true
