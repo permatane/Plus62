@@ -3,16 +3,25 @@ package com.anymovies
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addDuration
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.utils.*
-import com.lagradost.cloudstream3.utils.ExtractorLinkType
-import com.lagradost.cloudstream3.utils.INFER_TYPE
 import org.jsoup.nodes.Element
+import java.net.URLEncoder
 
 class Anymovies : MainAPI() {
 
     // ==========================================
-    // PROVIDER CONFIGURATION
+    // KONSTANTA
+    // ==========================================
+    private val CHROME_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+
+    // Regex ekstrak URL dari onclick="_loadP(this,'https://...')"
+    private val onclickRegex = Regex("""_loadP\s*\(\s*[^,]+,\s*['"]([^'"]+)['"]\s*\)""")
+
+    // ==========================================
+    // PROVIDER CONFIG
     // ==========================================
     override var mainUrl = "https://www.downloads-anymovies.co"
     override var name = "AnyMovies"
@@ -54,15 +63,20 @@ class Anymovies : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        val url = if (page > 1) {
-            "${request.data}/page/$page"
-        } else {
-            request.data
-        }
+        val url = if (page > 1) "${request.data}/page/$page" else request.data
 
-        val document = app.get(url).document
+        val document = app.get(
+            url,
+            headers = mapOf("User-Agent" to CHROME_UA)
+        ).document
 
-        val items = document.select("a[href*=/movie/], a[href*=/tv-show/], a[href*=/series/]")
+        // SELECTOR: semua <a> yang href-nya diawali /movie/ atau /tv-show/ DAN punya <img>
+        val items = document.select("a[href]")
+            .filter { el ->
+                val h = el.attr("href")
+                (h.startsWith("/movie/") || h.startsWith("/tv-show/") || h.startsWith("/series/"))
+                        && el.selectFirst("img") != null
+            }
             .mapNotNull { it.toSearchResponse() }
             .distinctBy { it.url }
 
@@ -70,23 +84,60 @@ class Anymovies : MainAPI() {
     }
 
     // ==========================================
-    // SEARCH
+    // SEARCH — multi-endpoint + fallback client-side
     // ==========================================
     override suspend fun search(query: String): List<SearchResponse> {
-        val searchUrl = "$mainUrl/?s=${query.replace(" ", "+")}"
-        val document = app.get(searchUrl).document
+        val enc = URLEncoder.encode(query, "UTF-8")
+        val headers = mapOf("User-Agent" to CHROME_UA)
 
-        return document.select("a[href*=/movie/], a[href*=/tv-show/], a[href*=/series/]")
-            .mapNotNull { it.toSearchResponse() }
-            .distinctBy { it.url }
+        // Coba berbagai endpoint search
+        val endpoints = listOf(
+            "$mainUrl/?s=$enc",
+            "$mainUrl/search/$enc",
+            "$mainUrl/movies?s=$enc",
+            "$mainUrl/movies?search=$enc",
+        )
+
+        for (ep in endpoints) {
+            runCatching {
+                val doc = app.get(ep, headers = headers).document
+                val results = doc.select("a[href]")
+                    .filter { el ->
+                        val h = el.attr("href")
+                        (h.startsWith("/movie/") || h.startsWith("/tv-show/"))
+                                && el.selectFirst("img") != null
+                    }
+                    .mapNotNull { it.toSearchResponse() }
+                    .distinctBy { it.url }
+                if (results.isNotEmpty()) return results
+            }
+        }
+
+        // FALLBACK: ambil halaman /movies lalu filter client-side
+        runCatching {
+            val doc = app.get("$mainUrl/movies", headers = headers).document
+            val low = query.lowercase()
+            return doc.select("a[href]")
+                .filter { el ->
+                    val h = el.attr("href")
+                    (h.startsWith("/movie/") || h.startsWith("/tv-show/"))
+                            && el.selectFirst("img") != null
+                }
+                .mapNotNull { it.toSearchResponse() }
+                .filter { it.name.lowercase().contains(low) }
+                .distinctBy { it.url }
+        }
+
+        return emptyList()
     }
 
     // ==========================================
     // ELEMENT -> SEARCH RESPONSE
     // ==========================================
     private fun Element.toSearchResponse(): SearchResponse? {
-        val href = attr("href") ?: return null
-        if (!href.contains("/movie/") && !href.contains("/tv-show/") && !href.contains("/series/")) return null
+        val href = attr("href")
+        if (href.isBlank()) return null
+        if (!href.startsWith("/movie/") && !href.startsWith("/tv-show/") && !href.startsWith("/series/")) return null
 
         val fullUrl = fixUrl(href)
 
@@ -97,21 +148,21 @@ class Anymovies : MainAPI() {
                 .ifEmpty { it.attr("data-original") }
         }?.let { fixUrlNull(it) }
 
-        val title = selectFirst("h2, h3, h4, [class*=title], [class*=Title]")?.text()
-            ?.trim()
-            ?: imgEl?.attr("alt")?.trim()
-            ?: attr("title")?.trim()
-            ?: text().trim().takeIf { it.isNotEmpty() && it.length < 100 }
+        val rawTitle = imgEl?.attr("alt")?.trim()
+            ?.takeIf { it.isNotEmpty() && it.length < 150 }
+            ?: text().trim()
+                .replace(Regex("""\(\d{4}\).*"""), "")
+                .trim()
+                .takeIf { it.isNotEmpty() && it.length < 150 }
             ?: return null
 
         val yearPattern = Regex("""\((\d{4})\)""")
-        val yearFromTitle = yearPattern.find(title)?.groupValues?.get(1)?.toIntOrNull()
-        val yearFromUrl = Regex("""-(\d{4})(?:/|$)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
-        val year = yearFromTitle ?: yearFromUrl
+        val year = yearPattern.find(rawTitle)?.groupValues?.get(1)?.toIntOrNull()
+            ?: Regex("""-(\d{4})(?:/|-|$)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
 
-        val cleanTitle = title.replace(yearPattern, "").trim()
+        val cleanTitle = rawTitle.replace(yearPattern, "").trim()
 
-        val isTv = href.contains("/tv-show/") || href.contains("/series/")
+        val isTv = href.startsWith("/tv-show/") || href.startsWith("/series/")
         val type = if (isTv) TvType.TvSeries else TvType.Movie
 
         return if (isTv) {
@@ -128,12 +179,17 @@ class Anymovies : MainAPI() {
     }
 
     // ==========================================
-    // LOAD MEDIA DETAIL
+    // LOAD DETAIL — 🔥 INTI PERBAIKAN
     // ==========================================
     override suspend fun load(url: String): LoadResponse? {
-        val document = app.get(url).document
+        val document = app.get(
+            url,
+            headers = mapOf("User-Agent" to CHROME_UA)
+        ).document
 
+        // ---- TITLE ----
         val rawTitle = document.selectFirst("h1")?.text()?.trim()
+            ?: document.selectFirst("meta[property=og:title]")?.attr("content")?.trim()
             ?: document.select("title").text()
                 .replace("Full Movie Online", "")
                 .replace("Watch", "")
@@ -145,18 +201,18 @@ class Anymovies : MainAPI() {
         val year = yearMatch?.groupValues?.get(1)?.toIntOrNull()
         val title = rawTitle.replace(Regex("""\(\d{4}\)"""), "").trim()
 
+        // ---- POSTER ----
         val poster = document.selectFirst("meta[property=og:image]")?.attr("content")
             ?: document.selectFirst("meta[name=twitter:image]")?.attr("content")
-            ?: document.selectFirst("img[itemprop=image]")?.let {
-                it.attr("src").ifEmpty { it.attr("data-src") }
-            }?.let { fixUrlNull(it) }
+            ?.let { fixUrlNull(it) }
 
-        // SCORE (replace deprecated rating) — TMDb scale 0-10
+        // ---- SCORE ----
         val ratingText = document.selectFirst("div:contains(Ratings:)")?.ownText()
             ?.replace("Ratings:", "")?.trim()
         val tmdbScore = Regex("""([\d.]+)""").find(ratingText ?: "")
             ?.groupValues?.get(1)?.toDoubleOrNull()
 
+        // ---- METADATA ----
         val released = document.selectFirst("div:contains(Released:)")?.ownText()
             ?.replace("Released:", "")?.trim()
         val releaseYear = year ?: Regex("""(\d{4})""").find(released ?: "")
@@ -168,12 +224,6 @@ class Anymovies : MainAPI() {
         val genres = document.selectFirst("div:contains(Genres:)")
             ?.select("a")?.map { it.text().trim() }
 
-        val countries = document.selectFirst("div:contains(Countries:)")
-            ?.select("a")?.map { it.text().trim() }
-
-        val director = document.selectFirst("div:contains(Director:)")
-            ?.select("a")?.map { it.text().trim() }
-
         val actors = document.selectFirst("div:contains(Actors:)")
             ?.select("a")?.map { it.text().trim() }
 
@@ -181,63 +231,59 @@ class Anymovies : MainAPI() {
             ?.text()?.trim()
             ?: document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
 
-        val recommendations = document.select("a[href*=/movie/], a[href*=/tv-show/]")
+        // ---- YOUTUBE TRAILER ----
+        val trailer = document.selectFirst("#mediaActionsMount, [data-trailer]")
+            ?.attr("data-trailer")?.takeIf { it.isNotEmpty() }
+
+        // ---- REKOMENDASI ----
+        val recommendations = document.select("a[href]")
+            .filter { el ->
+                val h = el.attr("href")
+                (h.startsWith("/movie/") || h.startsWith("/tv-show/"))
+                        && el.selectFirst("img") != null
+                        && fixUrl(h) != url
+            }
             .mapNotNull { it.toSearchResponse() }
             .distinctBy { it.url }
-            .filter { it.url != url }
-            .take(20)
+            .take(16)
 
-        // === COLLECT SERVER SOURCES ===
-        val dataUrls = mutableListOf<Pair<String, String>>()
+        // ==========================================
+        // 🔥 EKSTRAK 7 SERVER DARI button.server-btn
+        // ==========================================
+        // <button class="server-btn" onclick="_loadP(this,'https://playmogo.com/e/xxx')">
+        //   <span class="pc">..icon..</span> Doodstream
+        // </button>
+        val serverButtons = document.select("button.server-btn[onclick]")
+        val serverList = mutableListOf<Pair<String, String>>()
 
-        // 1) iframes
-        document.select("iframe[src]").forEach { iframe ->
-            val src = iframe.attr("src")
-            if (src.isNotEmpty() && src.contains("http")) {
-                dataUrls.add(Pair(detectServerName(src), src))
-            }
+        serverButtons.forEach { btn ->
+            val onclick = btn.attr("onclick")
+            val m = onclickRegex.find(onclick) ?: return@forEach
+            val embedUrl = m.groupValues[1]
+            if (!embedUrl.startsWith("http")) return@forEach
+
+            // Nama server dari text button (bersihkan whitespace & icon svg)
+            val srvName = btn.text()
+                .replace(Regex("""\s+"""), " ")
+                .trim()
+                .ifEmpty { detectServerName(embedUrl) }
+
+            serverList.add(Pair(srvName, embedUrl))
         }
 
-        // 2) data attributes
-        document.select("[data-embed], [data-src], [data-url], [data-link]").forEach { el ->
-            val embed = el.attr("data-embed").ifEmpty { el.attr("data-src") }
-                .ifEmpty { el.attr("data-url") }.ifEmpty { el.attr("data-link") }
-            if (embed.isNotEmpty() && embed.contains("http") && dataUrls.none { it.second == embed }) {
-                val srvName = el.text().trim().ifEmpty { detectServerName(embed) }
-                dataUrls.add(Pair(srvName, embed))
-            }
-        }
-
-        // 3) onclick / href on buttons
-        document.select("button, .tab, [class*=server], [class*=Server]").forEach { btn ->
-            val onClick = btn.attr("onclick")
-            val href = btn.attr("href")
-            listOf(onClick, href, btn.attr("data-id")).firstOrNull { it.contains("http") }?.let { candidate ->
-                Regex("""https?://[^\s"'<>)]+""").find(candidate)?.groupValues?.get(0)?.let { u ->
-                    if (dataUrls.none { it.second == u }) {
-                        val srvName = btn.text().trim().ifEmpty { detectServerName(u) }
-                        dataUrls.add(Pair(srvName, u))
-                    }
+        // Fallback: cari iframe jika tombol tidak ada
+        if (serverList.isEmpty()) {
+            document.select("iframe#playerFrame[src], iframe[src*=embed], iframe[src*=movie]").forEach { fr ->
+                val src = fr.attr("src")
+                if (src.startsWith("http")) {
+                    serverList.add(Pair(detectServerName(src), src))
                 }
             }
         }
 
-        // 4) scan <script> tags
-        val embedRx = Regex(
-            """['"](https?://[^'"]*?(?:dood|vidplay|vidsrc|vidfast|movietoplay|movieplay|videasy|supervideo|mixdrop|streamtape|mp4upload|embed|player)[^'"]*)['"]""",
-            RegexOption.IGNORE_CASE
-        )
-        document.select("script").forEach { script ->
-            embedRx.findAll(script.html()).forEach { m ->
-                val found = m.groupValues[1]
-                if (dataUrls.none { it.second == found }) {
-                    dataUrls.add(Pair(detectServerName(found), found))
-                }
-            }
-        }
-
-        val finalData = if (dataUrls.isNotEmpty()) {
-            dataUrls.distinctBy { it.second }.joinToString("|||") {
+        // Encode ke format pipe-delimited untuk loadLinks()
+        val finalData = if (serverList.isNotEmpty()) {
+            serverList.distinctBy { it.second }.joinToString("|||") {
                 "${it.first}|::|${it.second}"
             }
         } else {
@@ -260,10 +306,11 @@ class Anymovies : MainAPI() {
                 this.year = releaseYear
                 this.plot = plot
                 this.tags = genres
-                this.score = Score.from10(tmdbScore)   // FIX: deprecated rating -> score
+                this.score = Score.from10(tmdbScore)
                 this.recommendations = recommendations
                 addDuration(duration)
                 addActors(actors)
+                trailer?.let { addTrailer(it) }
             }
         } else {
             newMovieLoadResponse(title, url, TvType.Movie, finalData) {
@@ -271,39 +318,41 @@ class Anymovies : MainAPI() {
                 this.year = releaseYear
                 this.plot = plot
                 this.tags = genres
-                this.score = Score.from10(tmdbScore)   // FIX: deprecated rating -> score
+                this.score = Score.from10(tmdbScore)
                 this.recommendations = recommendations
                 addDuration(duration)
                 addActors(actors)
+                trailer?.let { addTrailer(it) }
             }
         }
     }
 
     // ==========================================
-    // SERVER DETECTION
+    // DETEKSI SERVER — SESUAI TOMBOL DI UI SITUS
     // ==========================================
     private fun detectServerName(url: String): String {
         val lower = url.lowercase()
         return when {
+            "playmogo" in lower -> "Doodstream"
+            "vsembed" in lower -> "Video Src"
+            "vidfast.pro" in lower || "vidfast" in lower -> "VidFast"
+            "primesrc" in lower -> "MovietoPlay"
+            "multiembed" in lower -> "Super Server"
+            "videasy" in lower -> "VidEasy"
+            "peachify" in lower -> "VidPlay"
             "dood" in lower -> "Doodstream"
             "vidplay" in lower -> "VidPlay"
-            "vidsrc" in lower -> "VideoSrc"
-            "vidfast" in lower -> "VidFast"
-            "movietoplay" in lower || "movieplay" in lower -> "MovietoPlay"
-            "videasy" in lower -> "VidEasy"
-            "super" in lower && "server" in lower -> "Super Server"
+            "vidsrc" in lower -> "Video Src"
             "mixdrop" in lower -> "Mixdrop"
             "streamtape" in lower -> "Streamtape"
             "mp4upload" in lower -> "Mp4Upload"
-            "upstream" in lower -> "Upstream"
             "filemoon" in lower -> "Filemoon"
-            "luluvdo" in lower -> "LuluVDO"
             else -> "Server"
         }
     }
 
     // ==========================================
-    // LOAD LINKS
+    // LOAD LINKS — panggil extractor per server
     // ==========================================
     override suspend fun loadLinks(
         data: String,
@@ -316,48 +365,42 @@ class Anymovies : MainAPI() {
         if (data.contains("|::|")) {
             val sources = data.split("|||").mapNotNull { entry ->
                 val parts = entry.split("|::|")
-                if (parts.size >= 2) Pair(parts[0], parts[1]) else null
+                if (parts.size >= 2) Pair(parts[0].trim(), parts[1].trim()) else null
             }
-            // FIX: apmap deprecated -> use serial forEach (suspend-safe)
+
+            // Server yang didukung built-in CloudStream:
+            // Doodstream, Vidplay, Mixdrop, Streamtape, Mp4Upload, Filemoon,
+            // GenericM3U8 (untup vsembed, vidfast, primesrc, multiembed, videasy, peachify)
             sources.forEach { (_, embedUrl) ->
                 runCatching {
-                    loadExtractor(embedUrl, mainUrl, subtitleCallback, callback)
+                    loadExtractor(
+                        url = embedUrl,
+                        referer = mainUrl,
+                        subtitleCallback = subtitleCallback,
+                        callback = callback
+                    )
                     success = true
                 }.onFailure {
-                    runCatching { extractManual(embedUrl, subtitleCallback, callback) }
+                    runCatching { extractManualFallback(embedUrl, subtitleCallback, callback) }
                 }
             }
             return success
         }
 
+        // Fallback: data = URL halaman -> parse ulang tombol
         if (data.startsWith("http")) {
-            val doc = app.get(data).document
-            val sources = mutableListOf<Pair<String, String>>()
-
-            doc.select("iframe[src]").forEach {
-                val s = it.attr("src")
-                if (s.contains("http")) sources.add(Pair(detectServerName(s), s))
-            }
-            doc.select("[data-embed], [data-src], [data-url]").forEach {
-                val u = it.attr("data-embed").ifEmpty { it.attr("data-src") }
-                    .ifEmpty { it.attr("data-url") }
-                if (u.contains("http") && sources.none { s -> s.second == u })
-                    sources.add(Pair(detectServerName(u), u))
-            }
-            val rx = Regex("""['"](https?://[^'"]*(?:dood|vidplay|vidsrc|vidfast|embed|player|stream|mixdrop)[^'"]*)['"]""", RegexOption.IGNORE_CASE)
-            doc.select("script").forEach { sc ->
-                rx.findAll(sc.html()).forEach { m ->
-                    val u = m.groupValues[1]
-                    if (sources.none { s -> s.second == u })
-                        sources.add(Pair(detectServerName(u), u))
+            runCatching {
+                val doc = app.get(data, headers = mapOf("User-Agent" to CHROME_UA)).document
+                doc.select("button.server-btn[onclick]").forEach { btn ->
+                    onclickRegex.find(btn.attr("onclick"))?.groupValues?.get(1)?.let { u ->
+                        if (u.startsWith("http")) {
+                            runCatching {
+                                loadExtractor(u, mainUrl, subtitleCallback, callback)
+                                success = true
+                            }
+                        }
+                    }
                 }
-            }
-
-            if (sources.isEmpty()) return false
-            // FIX: apmap deprecated -> forEach
-            sources.distinctBy { it.second }.forEach { (_, u) ->
-                runCatching { loadExtractor(u, mainUrl, subtitleCallback, callback); success = true }
-                    .onFailure { runCatching { extractManual(u, subtitleCallback, callback) } }
             }
             return success
         }
@@ -366,24 +409,31 @@ class Anymovies : MainAPI() {
     }
 
     // ==========================================
-    // MANUAL EXTRACTION FALLBACK
+    // FALLBACK EKSTRAK MANUAL
     // ==========================================
-    private suspend fun extractManual(
+    private suspend fun extractManualFallback(
         url: String,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
         runCatching {
-            val resp = app.get(url, headers = mapOf("Referer" to mainUrl))
-            val body = resp.text
             val srvName = detectServerName(url)
+            val resp = app.get(
+                url,
+                headers = mapOf(
+                    "User-Agent" to CHROME_UA,
+                    "Referer" to "$mainUrl/"
+                )
+            )
+            val body = resp.text
 
             val patterns = listOf(
                 Regex("""['"](https?://[^'"]+\.m3u8[^'"]*)['"]"""),
                 Regex("""['"](https?://[^'"]+\.mp4[^'"]*)['"]"""),
                 Regex("""file\s*:\s*['"]([^'"]+\.(?:m3u8|mp4)[^'"]*)['"]"""),
                 Regex("""src\s*:\s*['"]([^'"]+\.(?:m3u8|mp4)[^'"]*)['"]"""),
-                Regex("""sources\s*:\s*\[\s*\{\s*file\s*:\s*['"]([^'"]+)['"]""")
+                Regex("""sources\s*:\s*\[\s*\{\s*file\s*:\s*['"]([^'"]+)['"]"""),
+                Regex("""hls\s*:\s*['"]([^'"]+)['"]"""),
             )
 
             patterns.forEach { pat ->
@@ -393,7 +443,6 @@ class Anymovies : MainAPI() {
                         val base = url.substring(0, url.indexOf("/", 8))
                         video = if (video.startsWith("/")) base + video else "$base/$video"
                     }
-                    // FIX: Qualities now from com.lagradost.cloudstream3.utils.Qualities
                     val q = when {
                         "1080" in video -> Qualities.P1080.value
                         "720" in video -> Qualities.P720.value
@@ -401,7 +450,7 @@ class Anymovies : MainAPI() {
                         "360" in video -> Qualities.P360.value
                         else -> Qualities.Unknown.value
                     }
-                    callback.invoke(
+                    callback(
                         newExtractorLink(
                             source = srvName,
                             name = srvName,
@@ -415,6 +464,7 @@ class Anymovies : MainAPI() {
                 }
             }
 
+            // Subtitle
             Regex("""['"](https?://[^'"]+\.(?:vtt|srt)[^'"]*)['"]""").findAll(body).forEach {
                 subtitleCallback(SubtitleFile(lang = "English", url = it.groupValues[1]))
             }
