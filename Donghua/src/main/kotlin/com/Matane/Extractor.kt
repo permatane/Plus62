@@ -141,6 +141,17 @@ open class Vidguardto : ExtractorApi() {
     override val mainUrl = "https://vidguard.to"
     override val requiresReferer = false
 }
+open class Hydrax : ExtractorApi() {
+    override val name = "Hydrax"
+    override val mainUrl = "https://abyssplayer.com"
+    override val requiresReferer = true
+    private suspend fun emit(raw, pageUrl, subCb, cb) { /* newExtractorLink */ }
+}
+// Mirror domain Hydrax:
+class HydraxAbyss : Hydrax() { override val mainUrl = "https://abyssplayer.com" }
+class HydraxNet   : Hydrax() { override val mainUrl = "https://hydrax.net" }
+class HydraxTo    : Hydrax() { override val mainUrl = "https://hydrax.to" }
+
 
 open class StreamRuby : ExtractorApi() {
     override val name = "StreamRuby"
