@@ -43,17 +43,16 @@ class Anymovies : MainAPI() {
     // ==========================================
     override val mainPage = mainPageOf(
         Pair("$mainUrl/movies", "Trending Movies"),
-        Pair("$mainUrl/movies", "New in HD"),
-        Pair("$mainUrl/movies", "Recently Added"),
-        Pair("$mainUrl/featured", "Featured Movies"),
-        Pair("$mainUrl/tv-shows", "TV Shows"),
-        Pair("$mainUrl/top-100-movies", "Top 100 Movies"),
-        Pair("$mainUrl/genre/action", "Action"),
-        Pair("$mainUrl/genre/horror", "Horror"),
-        Pair("$mainUrl/genre/comedy", "Comedy"),
-        Pair("$mainUrl/genre/sci-fi", "Sci-Fi"),
-        Pair("$mainUrl/genre/romance", "Romance"),
-        Pair("$mainUrl/genre/thriller", "Thriller"),
+        Pair("$mainUrl/series", "TV Show"), 
+        Pair("$mainUrl/featured/1", "Featured Movies"),
+        Pair("$mainUrl/top-films-of-all-time", "Top Movies"),
+        Pair("$mainUrl/filter/search.php?genre=Action", "Action"), 
+        Pair("$mainUrl/filter/search.php?genre=Horor", "Horror"),
+        Pair("$mainUrl/filter/search.php?genre=Comedy", "Comedy"),
+        Pair("$mainUrl/filter/search.php?genre=Science%20Fiction", "Sci-Fi"), 
+        Pair("$mainUrl/filter/search.php?genre=Romance", "Romance"),
+        Pair("$mainUrl/filter/search.php?genre=Thriller", "Thriller"), 
+        Pair("$mainUrl/filter/search.php?adult=1", "Recently Added"), 
     )
 
     // ==========================================
