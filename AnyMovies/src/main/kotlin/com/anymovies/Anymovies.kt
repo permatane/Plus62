@@ -401,7 +401,6 @@ class Anymovies : MainAPI() {
                         "360" in video -> Qualities.P360.value
                         else -> Qualities.Unknown.value
                     }
-                    // FIX: newExtractorLink signature = (source, name, url, type) + builder lambda
                     callback.invoke(
                         newExtractorLink(
                             source = srvName,
@@ -411,7 +410,6 @@ class Anymovies : MainAPI() {
                         ) {
                             this.referer = url
                             this.quality = q
-                            this.isM3u8 = ".m3u8" in video
                         }
                     )
                 }
