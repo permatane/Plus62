@@ -1,13 +1,16 @@
 package com.ngefilm
 
-import android.content.Context
+//import android.content.Context
+import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 import com.lagradost.cloudstream3.extractors.*
 
 @CloudstreamPlugin
-class NgefilmPlugin : Plugin() {
-    override fun load(context: Context) {
+// class NgefilmPlugin : Plugin() {
+//   override fun load(context: Context) {
+class NgefilmPlugin: BasePlugin() {
+    override fun load() {
         registerMainAPI(Ngefilm())
         registerMainAPI(Cda())
         registerMainAPI(Cdnplayer())
