@@ -1,6 +1,5 @@
 package com.Matane
 
-
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.extractors.StreamWishExtractor
@@ -141,17 +140,6 @@ open class Vidguardto : ExtractorApi() {
     override val mainUrl = "https://vidguard.to"
     override val requiresReferer = false
 }
-open class Hydrax : ExtractorApi() {
-    override val name = "Hydrax"
-    override val mainUrl = "https://abyssplayer.com"
-    override val requiresReferer = true
-    private suspend fun emit(raw, pageUrl, subCb, cb) { /* newExtractorLink */ }
-}
-// Mirror domain Hydrax:
-class HydraxAbyss : Hydrax() { override val mainUrl = "https://abyssplayer.com" }
-class HydraxNet   : Hydrax() { override val mainUrl = "https://hydrax.net" }
-class HydraxTo    : Hydrax() { override val mainUrl = "https://hydrax.to" }
-
 
 open class StreamRuby : ExtractorApi() {
     override val name = "StreamRuby"
@@ -253,6 +241,122 @@ class Rumble : ExtractorApi() {
         }
     }
 }
+
+open class Hydrax : ExtractorApi() {
+    override val name = "Hydrax"
+    override val mainUrl = "https://abyssplayer.com"
+    override val requiresReferer = true
+
+    private val CHROME_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+
+    override suspend fun getUrl(
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        runCatching {
+            val resp = app.get(
+                url,
+                headers = mapOf(
+                    "User-Agent" to CHROME_UA,
+                    "Referer" to (referer ?: "https://donghuaid.live/")
+                )
+            )
+            val body = resp.text
+
+            // Pola 1: m3u8 / mp4 langsung
+            listOf(
+                Regex("""['"](https?://[^'"]+\.m3u8[^'"]*)['"]"""),
+                Regex("""['"](https?://[^'"]+\.mp4[^'"]*)['"]"""),
+                Regex("""file\s*:\s*['"]([^'"]+\.(?:m3u8|mp4)[^'"]*)['"]"""),
+                Regex("""src\s*:\s*['"]([^'"]+\.(?:m3u8|mp4)[^'"]*)['"]"""),
+                Regex("""sources\s*:\s*\[\s*\{\s*file\s*:\s*['"]([^'"]+)['"]"""),
+                Regex("""playlist\s*:\s*['"]([^'"]+\.m3u8[^'"]*)['"]"""),
+            ).forEach { pat ->
+                pat.findAll(body).forEach { m ->
+                    emit(m.groupValues[1], url, subtitleCallback, callback)
+                }
+            }
+
+            // Pola 2: base64 via atob()
+            Regex("""atob\(['"]([A-Za-z0-9+/=]{20,})['"]\)""").findAll(body).forEach { m ->
+                runCatching {
+                    val decoded = base64Decode(m.groupValues[1])
+                    Regex("""https?://[^\s"'<>]+\.(?:m3u8|mp4)[^\s"'<>]*""").find(decoded)
+                        ?.groupValues?.get(0)?.let { link ->
+                            emit(link, url, subtitleCallback, callback)
+                        }
+                }
+            }
+
+            // Pola 3: window.hydrax = {...} JSON
+            Regex("""window\.hydrax\s*=\s*(\{[\s\S]*?\});""").find(body)?.groupValues?.get(1)?.let { jsonStr ->
+                Regex("""['"]?['"]?(https?://[^'"]+\.m3u8[^'"]*)""").findAll(jsonStr).forEach { m ->
+                    emit(m.groupValues[1], url, subtitleCallback, callback)
+                }
+            }
+
+            // Pola 4: setup player dengan sources array
+            Regex("""player\.setup\(\s*(\{[\s\S]*?\})""").find(body)?.groupValues?.get(1)?.let { setup ->
+                Regex("""['"](https?://[^'"]+\.m3u8[^'"]*)['"]""").findAll(setup).forEach { m ->
+                    emit(m.groupValues[1], url, subtitleCallback, callback)
+                }
+            }
+
+            // Subtitle Hydrax (.vtt / .srt)
+            Regex("""['"](https?://[^'"]+\.(?:vtt|srt)[^'"]*)['"]""").findAll(body).forEach {
+                subtitleCallback(SubtitleFile(lang = "Indonesia", url = it.groupValues[1]))
+            }
+        }
+    }
+
+    private suspend fun emit(
+        raw: String,
+        pageUrl: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        var video = raw
+        if (!video.startsWith("http")) {
+            val base = pageUrl.substring(0, pageUrl.indexOf("/", 8))
+            video = if (video.startsWith("/")) base + video else "$base/$video"
+        }
+        val q = when {
+            "1080" in video -> Qualities.P1080.value
+            "720" in video -> Qualities.P720.value
+            "480" in video -> Qualities.P480.value
+            "360" in video -> Qualities.P360.value
+            else -> Qualities.Unknown.value
+        }
+        callback(
+            newExtractorLink(
+                source = this.name,
+                name = this.name,
+                url = video,
+                type = INFER_TYPE
+            ) {
+                this.referer = pageUrl
+                this.quality = q
+            }
+        )
+    }
+}
+
+// Mirror Hydrax di berbagai domain DonghuaId
+class HydraxAbyss : Hydrax() {
+    override val mainUrl = "https://abyssplayer.com"
+}
+
+class HydraxNet : Hydrax() {
+    override val mainUrl = "https://hydrax.net"
+}
+
+class HydraxTo : Hydrax() {
+    override val mainUrl = "https://hydrax.to"
+}
+
 fun Http(url: String): String {
     return if (url.startsWith("//")) {
         "https:$url"
