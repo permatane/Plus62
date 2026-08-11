@@ -129,7 +129,6 @@ class Yunshanid : MainAPI() {
         } else {
             newAnimeSearchResponse(title, animeUrl, type) {
                 this.posterUrl = posterUrl
-                addDubStatus(dub = false, episodes = epNum)
             }
         }
     }
@@ -163,15 +162,6 @@ class Yunshanid : MainAPI() {
             ?.text()?.trim()
             ?: document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
 
-        // Status: ON-GOING / COMPLETE
-        val statusText = document.selectFirst("[class*=status], [class*=Status], span:contains(ON-GOING), span:contains(COMPLETE)")
-            ?.text()?.trim()
-        val status = when {
-            statusText?.contains("ON-GOING", true) == true -> ShowStatus.Ongoing
-            statusText?.contains("COMPLETE", true) == true -> ShowStatus.Completed
-            else -> null
-        }
-
         // Tipe: Movie / Series
         val typeBadge = document.selectFirst("[class*=type], span:contains(SERIES), span:contains(MOVIE)")?.text() ?: ""
         val isMovie = typeBadge.contains("MOVIE", true) ||
@@ -204,7 +194,6 @@ class Yunshanid : MainAPI() {
             return newTvSeriesLoadResponse(title, url, TvType.Anime, episodes) {
                 this.posterUrl = poster
                 this.plot = description
-                this.status = status
             }
         }
 
@@ -219,7 +208,6 @@ class Yunshanid : MainAPI() {
         return newMovieLoadResponse(title, url, TvType.Movie, moviePlayerUrl) {
             this.posterUrl = poster
             this.plot = description
-            this.status = status
         }
     }
 
