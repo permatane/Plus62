@@ -95,6 +95,5 @@ class Donghuaid : Anichin() {
 
         return true
     }
-}
 
 
