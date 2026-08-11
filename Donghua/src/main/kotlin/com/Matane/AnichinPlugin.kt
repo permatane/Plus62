@@ -16,6 +16,7 @@ class AnichinPlugin: BasePlugin() {
         registerMainAPI(Donghuaid())
         registerMainAPI(Donghub())
         registerMainAPI(Anixverse())
+        registerMainAPI(Yunshanid())
         registerExtractorAPI(ArchiveOrgExtractor())
         registerExtractorAPI(Ewish())
         registerExtractorAPI(Filelions())
