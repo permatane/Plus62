@@ -71,7 +71,7 @@ class Donghuaid : Anichin() {
         }?.let { fixUrlNull(it) }
             ?: document.selectFirst("meta[property=og:image]")?.attr("content")?.trim()
 
-    }
+
    override suspend fun loadLinks(
             data: String,
             isCasting: Boolean,
