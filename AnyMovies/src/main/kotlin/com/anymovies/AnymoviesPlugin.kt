@@ -14,12 +14,5 @@ class AnymoviesPlugin : Plugin() {
         registerExtractorAPI(CdnwishCom())
         registerExtractorAPI(Gdriveplayer())  
         registerExtractorAPI(XStreamCdn())
-        registerExtractorAPI(Vidtren())    
-        registerExtractorAPI(svilla())
-        registerExtractorAPI(svanila())
-        registerExtractorAPI(Vidguardto())
-        registerExtractorAPI(Vidguardto1())
-        registerExtractorAPI(Vidguardto2())
-        registerExtractorAPI(Vidguardto3()) 
     }
 }
