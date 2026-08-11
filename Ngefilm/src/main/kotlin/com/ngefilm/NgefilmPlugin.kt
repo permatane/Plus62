@@ -12,10 +12,10 @@ import com.lagradost.cloudstream3.extractors.*
 class NgefilmPlugin: BasePlugin() {
     override fun load() {
         registerMainAPI(Ngefilm())
-        registerMainAPI(Cda())
-        registerMainAPI(Cdnplayer())
-        registerMainAPI(CdnwishCom())
-        registerMainAPI(Ewish())
+        registerExtractorAPI(Cda())
+        registerExtractorAPI(Cdnplayer())
+        registerExtractorAPI(CdnwishCom())
+        registerExtractorAPI(Ewish())
         registerExtractorAPI(Dingtezuni())
         registerExtractorAPI(Bingezove())
         registerExtractorAPI(Mivalyo())
