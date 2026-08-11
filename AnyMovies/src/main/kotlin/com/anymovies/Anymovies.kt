@@ -3,8 +3,8 @@ package com.anymovies
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addDuration
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.Score
+import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
 
 class Anymovies : MainAPI() {
@@ -149,11 +149,11 @@ class Anymovies : MainAPI() {
                 it.attr("src").ifEmpty { it.attr("data-src") }
             }?.let { fixUrlNull(it) }
 
+        // SCORE (replace deprecated rating) — TMDb scale 0-10
         val ratingText = document.selectFirst("div:contains(Ratings:)")?.ownText()
             ?.replace("Ratings:", "")?.trim()
-        val rating = Regex("""([\d.]+)""").find(ratingText ?: "")
+        val tmdbScore = Regex("""([\d.]+)""").find(ratingText ?: "")
             ?.groupValues?.get(1)?.toDoubleOrNull()
-            ?.times(1000)?.toInt()
 
         val released = document.selectFirst("div:contains(Released:)")?.ownText()
             ?.replace("Released:", "")?.trim()
@@ -258,7 +258,7 @@ class Anymovies : MainAPI() {
                 this.year = releaseYear
                 this.plot = plot
                 this.tags = genres
-                this.rating = rating
+                this.score = Score.from10(tmdbScore)   // FIX: deprecated rating -> score
                 this.recommendations = recommendations
                 addDuration(duration)
                 addActors(actors)
@@ -269,7 +269,7 @@ class Anymovies : MainAPI() {
                 this.year = releaseYear
                 this.plot = plot
                 this.tags = genres
-                this.rating = rating
+                this.score = Score.from10(tmdbScore)   // FIX: deprecated rating -> score
                 this.recommendations = recommendations
                 addDuration(duration)
                 addActors(actors)
@@ -316,7 +316,8 @@ class Anymovies : MainAPI() {
                 val parts = entry.split("|::|")
                 if (parts.size >= 2) Pair(parts[0], parts[1]) else null
             }
-            sources.apmap { (_, embedUrl) ->
+            // FIX: apmap deprecated -> use serial forEach (suspend-safe)
+            sources.forEach { (_, embedUrl) ->
                 runCatching {
                     loadExtractor(embedUrl, mainUrl, subtitleCallback, callback)
                     success = true
@@ -351,7 +352,8 @@ class Anymovies : MainAPI() {
             }
 
             if (sources.isEmpty()) return false
-            sources.distinctBy { it.second }.apmap { (_, u) ->
+            // FIX: apmap deprecated -> forEach
+            sources.distinctBy { it.second }.forEach { (_, u) ->
                 runCatching { loadExtractor(u, mainUrl, subtitleCallback, callback); success = true }
                     .onFailure { runCatching { extractManual(u, subtitleCallback, callback) } }
             }
@@ -389,6 +391,7 @@ class Anymovies : MainAPI() {
                         val base = url.substring(0, url.indexOf("/", 8))
                         video = if (video.startsWith("/")) base + video else "$base/$video"
                     }
+                    // FIX: Qualities now from com.lagradost.cloudstream3.utils.Qualities
                     val q = when {
                         "1080" in video -> Qualities.P1080.value
                         "720" in video -> Qualities.P720.value
@@ -396,8 +399,9 @@ class Anymovies : MainAPI() {
                         "360" in video -> Qualities.P360.value
                         else -> Qualities.Unknown.value
                     }
-                    callback(
-                        ExtractorLink(
+                    // FIX: deprecated constructor -> use newExtractorLink helper
+                    callback.invoke(
+                        newExtractorLink(
                             source = srvName,
                             name = srvName,
                             url = video,
