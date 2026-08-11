@@ -1,7 +1,9 @@
 package com.Matane
 
+
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.base64Decode
 import com.lagradost.cloudstream3.extractors.StreamWishExtractor
 import com.lagradost.cloudstream3.extractors.VidHidePro
 import com.lagradost.cloudstream3.extractors.VidStack
@@ -241,7 +243,10 @@ class Rumble : ExtractorApi() {
         }
     }
 }
-
+// ==========================================
+// 🔥 HYDRAX EXTRACTOR — untuk DonghuaId
+// Domain: abyssplayer.com, hydrax.net, hydrax.to, multiembed.mov
+// ==========================================
 open class Hydrax : ExtractorApi() {
     override val name = "Hydrax"
     override val mainUrl = "https://abyssplayer.com"
