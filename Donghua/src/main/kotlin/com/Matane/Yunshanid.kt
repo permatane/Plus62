@@ -10,7 +10,7 @@ class Yunshanid : Anichin() {
     // PROVIDER CONFIG
     // ==========================================
     override var mainUrl = "https://yunshanid.site"
-    override var name = "YunshanID"
+    override var name = "Donghua YunshanID"
     override var lang = "id"
     override val hasMainPage = true
     override val hasDownloadSupport = true
@@ -211,10 +211,6 @@ class Yunshanid : Anichin() {
         }
     }
 
-    // ==========================================
-    // LOAD LINKS — halaman /episode/{ID}/{EP}
-    // Server: Gdrive, Ok.ru, Dailymotion (semua built-in di Plus62)
-    // ==========================================
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -231,17 +227,11 @@ class Yunshanid : Anichin() {
             val embedUrl = httpsify(src)
 
             runCatching {
-                // Plus62 built-in extractor menangani:
-                // Gdrive → Gdriveplayer()
-                // Ok.ru → OkRuSSL() / OkRuHTTP()
-                // Dailymotion → Dailymotion()
                 loadExtractor(embedUrl, data, subtitleCallback, callback)
                 success = true
             }
         }
 
-        // 2) Cari semua server dari dropdown "PILIH SERVER"
-        // Setiap option value biasanya berisi URL embed atau ID server
         document.select("select option[value]").forEach { opt ->
             val valAttr = opt.attr("value").trim()
             if (valAttr.isBlank()) return@forEach
