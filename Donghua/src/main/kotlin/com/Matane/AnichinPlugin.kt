@@ -50,6 +50,9 @@ class AnichinPlugin: BasePlugin() {
         registerExtractorAPI(Vidguardto3()) 
         registerExtractorAPI(Vtbe())
         registerExtractorAPI(waaw())
+        registerExtractorAPI(HydraxAbyss())  
+        registerExtractorAPI(HydraxNet())  
+        registerExtractorAPI(HydraxTo())   
         registerExtractorAPI(wishfast())
         registerExtractorAPI(FileMoonSx())
     }
