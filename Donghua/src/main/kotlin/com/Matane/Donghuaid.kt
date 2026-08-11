@@ -150,7 +150,7 @@ class Donghuaid : Anichin() {
                 this.posterUrl = poster
                 this.plot = description
                 this.year = year
-                addDuration(duration)
+
             }
         }
 
@@ -161,7 +161,7 @@ class Donghuaid : Anichin() {
             this.posterUrl = poster
             this.plot = description
             this.year = year
-            addDuration(duration)
+
         }
     }
    override suspend fun loadLinks(
