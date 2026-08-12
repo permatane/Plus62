@@ -365,4 +365,55 @@ fun Http(url: String): String {
     } else {
         url
     }
+
+// ==========================================
+// Ekstraktor Blogger Khusus untuk Anoboy
+// Menambahkan Referer wajib agar token diterima
+// ==========================================
+class AnoboyBlogger : ExtractorApi() {
+//    override val name = "Anoboy Blogger"
+    override val mainUrl = "blogger.com"
+    override val requiresReferer = true  // ⭐ WAJIB: Blogger butuh Referer dari Anoboy
+
+    companion object {
+        // Referer akan diatur dari Anoboy.kt saat pemanggilan
+        var refererOverride: String? = null
+
+        // Ekstrak URL dari teks atau HTML hasil dekode Base64
+        fun extractUrlFromContent(content: String): String? {
+            val srcPattern = Regex("""src\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+            val dataSrcPattern = Regex("""data-src\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+
+            srcPattern.find(content)?.groupValues?.get(1)
+                ?.takeIf { it.startsWith("//") || it.startsWith("http") }
+                ?.let { return it }
+
+            dataSrcPattern.find(content)?.groupValues?.get(1)
+                ?.takeIf { it.startsWith("//") || it.startsWith("http") }
+                ?.let { return it }
+
+            val trimmed = content.trim()
+            if (trimmed.startsWith("http") || trimmed.startsWith("//")) return trimmed
+            return null
+        }
+    }
+
+    override suspend fun getUrl(
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        // Gunakan referer dari Anoboy.kt jika diset, jika tidak pakai bawaan
+        val effectiveReferer = refererOverride ?: referer ?: "https://anoboy.be/"
+
+        // Serahkan ke ekstraktor Blogger bawaan CloudStream dengan Referer yang benar
+        loadExtractor(
+            url = url,
+            referer = effectiveReferer,
+            subtitleCallback = subtitleCallback,
+            callback = callback
+        )
+    }
+}
 }
