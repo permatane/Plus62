@@ -15,19 +15,30 @@ class Anoboy : MainAPI() {
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Anime, TvType.Movie)
 
-      override val mainPage = mainPageOf(
+    // ✅ 100% URL SESUAI ASLI Anoboy
+    override val mainPage = mainPageOf(
         "anime/?status=&type=&order=update" to "Update Terbaru",
         "anime/?sub=&order=latest" to "Baru ditambahkan",
         "anime/?status=&type=&order=popular" to "Terpopuler",
         "anime/?sub=&order=rating" to "Rating Tertinggi",
+        "anime/?status=ongoing" to "Sedang Tayang",
+        "anime/?status=completed" to "Tamat",
+        "anime/?genre=action" to "Action",
+        "anime/?genre=fantasy" to "Fantasi",
+        "anime/?genre=comedy" to "Komedi",
+        "anime/?genre=romance" to "Romansa",
+        "anime/?genre=isekai" to "Isekai",
+        "anime/?genre=drama" to "Drama",
+        "anime/?genre=adventure" to "Petualangan"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        // ✅ Paginasi: tambah &page=N
+        val separator = if (request.data.contains("?")) "&" else "?"
         val url = if (page == 1) {
             "$mainUrl/${request.data}"
         } else {
-            val sep = if (request.data.contains("?")) "&" else "?"
-            "$mainUrl/page/$page/${request.data}$sep"
+            "$mainUrl/${request.data}${separator}page=$page"
         }
         val document = app.get(url).documentLarge
 
@@ -46,18 +57,39 @@ class Anoboy : MainAPI() {
 
     private fun Element.toSearchResult(): SearchResponse? {
         val link = this.selectFirst("div.bsx > a") ?: return null
-        val href = fixUrl(link.attr("href")).takeIf { it.startsWith("http") } ?: return null
+        val rawHref = link.attr("href")
+        val rawTitle = this.selectFirst("h2, .tt")?.text()?.trim() ?: return null
 
-        val title = this.selectFirst("h2[itemprop=headline], div.tt")?.text()?.trim()
-            ?.substringBefore("Episode")?.trim() ?: return null
+        // Bersihkan judul: hapus "Episode XX Subtitle Indonesia"
+        val cleanTitle = rawTitle
+            .replace(Regex("\\s*Episode\\s*\\d+.*$", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\s*Subtitle\\s+Indonesia$", RegexOption.IGNORE_CASE), "")
+            .trim()
+
+        // Ekstrak nomor episode
+        val epText = this.selectFirst("span.epx, .ep")?.text()?.trim()
+        val epNum = epText?.let { Regex("""(\d+)""").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+
+        // Normalisasi URL: /judul-episode-xx/ → /anime/judul/
+        val animeHref = runCatching {
+            val href = rawHref.removePrefix(mainUrl)
+            val parts = href.split("/").filter { it.isNotEmpty() }
+            if (parts.isNotEmpty() && parts.last().startsWith("episode-", ignoreCase = true)) {
+                val slug = parts.dropLast(1).joinToString("/")
+                fixUrl("/$slug/")
+            } else {
+                fixUrl(rawHref)
+            }
+        }.getOrElse { fixUrl(rawHref) }
 
         val posterUrl = fixUrlNull(
             this.selectFirst("img")?.attr("src")
                 ?.takeIf { it.isNotEmpty() && !it.startsWith("data:image") }
         )
 
-        return newAnimeSearchResponse(title, href, TvType.Anime) {
+        return newAnimeSearchResponse(cleanTitle, animeHref, TvType.Anime) {
             this.posterUrl = posterUrl
+            if (epNum != null) this.name = "$cleanTitle — Ep $epNum"
         }
     }
 
@@ -74,7 +106,11 @@ class Anoboy : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).documentLarge
 
-        val title = document.selectFirst("h1")?.text()?.trim()?.substringBefore("Episode")?.trim() ?: "Anime"
+        val rawTitle = document.selectFirst("h1")?.text()?.trim() ?: "Anime"
+        val title = rawTitle
+            .replace(Regex("\\s*Episode\\s*\\d+.*$", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\s*Subtitle\\s+Indonesia$", RegexOption.IGNORE_CASE), "")
+            .trim()
 
         val posterUrl = fixUrlNull(
             document.selectFirst("div.thumb img, .poster img, img.wp-post-image")?.attr("src")
@@ -86,23 +122,19 @@ class Anoboy : MainAPI() {
             ?.substringBefore("Genre")?.trim()
 
         val genres = document.select(".genres a, .tags a").map { it.text().trim() }.filter { it.isNotEmpty() }
-        val scoreText = document.selectFirst(".score, .rating")?.text()?.trim()?.toDoubleOrNull()
+        val scoreText = document.selectFirst(".score, .rating, .numscore")?.text()?.trim()?.toDoubleOrNull()
         val trailerUrl = document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("src")
             ?: document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("href")
 
-        // ✅ AMBIL DAFTAR EPISODE DARI ENDPOINT AJAX TERPISAH
+        // Ambil daftar episode dari AJAX
         val episodes = mutableListOf<Episode>()
         val ajaxUrl = if (url.endsWith("/")) "${url}ajax_episodes" else "$url/ajax_episodes"
 
         try {
             val ajaxDoc = app.get(ajaxUrl).document
-
-            // Selektor episode sesuai struktur Anoboy
-            ajaxDoc.select("li a, a[href*=/episode/], .episod a").forEach { ep ->
+            ajaxDoc.select("a[href*=/episode/]").forEach { ep ->
                 val epUrl = fixUrl(ep.attr("href"))
                 val epText = ep.text().trim()
-
-                // ✅ PERBAIKAN NOMOR EPISODE: ambil angka pertama saja, buang angka tambahan
                 val epNum = Regex("""Episode\s*(\d+)""", RegexOption.IGNORE_CASE)
                     .find(epText)?.groupValues?.get(1)?.toIntOrNull()
                     ?: Regex("""(\d+)""").find(epText)?.groupValues?.get(1)?.toIntOrNull()
@@ -114,9 +146,8 @@ class Anoboy : MainAPI() {
                     })
                 }
             }
-        } catch (e: Exception) {
-            // Fallback: jika AJAX gagal, ambil dari halaman utama
-            document.select("div.eplister li a, ul.episodios li a, a[href*=/episode/]").forEach { ep ->
+        } catch (_: Exception) {
+            document.select("a[href*=/episode/]").forEach { ep ->
                 val epUrl = fixUrl(ep.attr("href"))
                 val epText = ep.text().trim()
                 val epNum = Regex("""Episode\s*(\d+)""", RegexOption.IGNORE_CASE)
@@ -132,8 +163,8 @@ class Anoboy : MainAPI() {
             }
         }
 
-        // Urutkan dari episode terlama ke terbaru
-        val isMovie = episodes.size <= 1 && !url.contains("/episode-", ignoreCase = true)
+        val sortedEpisodes = episodes.sortedBy { it.episode }
+        val isMovie = sortedEpisodes.size <= 1 && !url.contains("/episode-", ignoreCase = true)
 
         return if (isMovie) {
             newMovieLoadResponse(title, url, TvType.Movie, url) {
@@ -144,7 +175,7 @@ class Anoboy : MainAPI() {
                 if (!trailerUrl.isNullOrEmpty()) addTrailer(trailerUrl)
             }
         } else {
-            newTvSeriesLoadResponse(title, url, TvType.Anime, episodes.sortedBy { it.episode }) {
+            newTvSeriesLoadResponse(title, url, TvType.Anime, sortedEpisodes) {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.tags = genres
@@ -163,7 +194,6 @@ class Anoboy : MainAPI() {
         val document = app.get(data).document
         var success = false
 
-        // Decode base64 → Blogger URL
         document.select("select.mirror option, select.server option, option[value*=eyJ]").forEach { opt ->
             val b64 = opt.attr("value").takeIf { it.isNotEmpty() } ?: return@forEach
             runCatching {
@@ -184,7 +214,6 @@ class Anoboy : MainAPI() {
             }
         }
 
-        // Iframe langsung
         if (!success) {
             document.select("iframe[src]").forEach { iframe ->
                 var src = iframe.attr("src")
