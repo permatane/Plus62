@@ -9,7 +9,7 @@ import java.net.URI
 
 class Filmapik : MainAPI() {
     // Domain utama sebagai pintu masuk (Landing Page)
-    override var mainUrl = "https://filmapik.to"
+    override var mainUrl = "https://filmapik.college"
     override var name = "FilmApik"
     override var lang = "id"
     override val hasMainPage = true
