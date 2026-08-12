@@ -13,6 +13,7 @@ class AnoboyPlugin: BasePlugin() {
         registerExtractorAPI(ArchiveOrgExtractor())
         registerExtractorAPI(Ewish())
         registerExtractorAPI(Cda())
+        registerExtractorAPI(Gofile())
         registerExtractorAPI(Filelions())
         registerExtractorAPI(VidHidePro5())
         registerExtractorAPI(Swhoi())
