@@ -38,10 +38,7 @@ class Anoboy : MainAPI() {
         }
         val document = app.get(url).documentLarge
 
-        // ✅ SELEKTOR TEPAT SESUAI HTML ASLI: article.bs
         val home = document.select("article.bs").mapNotNull { it.toSearchResult() }
-
-        // Deteksi halaman berikutnya
         val hasNext = document.select("a.next, .nav-next, .page-nav a:contains(Next)").isNotEmpty()
 
         return newHomePageResponse(
@@ -55,27 +52,23 @@ class Anoboy : MainAPI() {
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        // ✅ Sesuai struktur: article.bs > div.bsx > a
         val link = this.selectFirst("div.bsx > a") ?: return null
         val href = fixUrl(link.attr("href")).takeIf { it.startsWith("http") } ?: return null
 
-        // ✅ Judul dari h2[itemprop=headline] atau div.tt
         val title = this.selectFirst("h2[itemprop=headline], div.tt")?.text()?.trim()
-            ?.substringBefore("Episode")?.trim()
-            ?: return null
+            ?.substringBefore("Episode")?.trim() ?: return null
 
-        // ✅ Poster dari img[src] — TIDAK pakai data-src!
         val posterUrl = fixUrlNull(
             this.selectFirst("img")?.attr("src")
                 ?.takeIf { it.isNotEmpty() && !it.startsWith("data:image") }
         )
 
-        // ✅ Info episode
         val epText = this.selectFirst("span.epx")?.text()?.trim()
+        val epNum = epText?.filter { it.isDigit() }?.toIntOrNull()
 
         return newAnimeSearchResponse(title, href, TvType.Anime) {
             this.posterUrl = posterUrl
-            this.ep = epText
+            if (epNum != null) this.episode = epNum
         }
     }
 
@@ -94,7 +87,6 @@ class Anoboy : MainAPI() {
 
         val title = document.selectFirst("h1")?.text()?.trim()?.substringBefore("Episode")?.trim() ?: "Anime"
 
-        // Poster halaman detail
         val posterUrl = fixUrlNull(
             document.selectFirst("div.thumb img, .poster img, img.wp-post-image")?.attr("src")
                 ?.ifEmpty { document.selectFirst("meta[property=og:image]")?.attr("content") }
@@ -107,17 +99,10 @@ class Anoboy : MainAPI() {
         val genres = document.select(".genres a, .tags a").map { it.text().trim() }.filter { it.isNotEmpty() }
 
         val statusText = document.selectFirst(".status, .post-status")?.text()?.trim()
-        val showStatus = when {
-            statusText?.contains("Completed", ignoreCase = true) == true -> ShowStatus.Completed
-            statusText?.contains("Tamat", ignoreCase = true) == true -> ShowStatus.Completed
-            else -> ShowStatus.Ongoing
-        }
-
         val scoreText = document.selectFirst(".score, .rating")?.text()?.trim()?.toDoubleOrNull()
         val trailerUrl = document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("src")
             ?: document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("href")
 
-        // Daftar episode
         val episodes = document.select("div.eplister li a, .episodios li a, .episodes a").mapNotNull { ep ->
             val epUrl = fixUrl(ep.attr("href"))
             val epNum = ep.selectFirst(".ep-num, .episode-number")?.text()?.toIntOrNull()
@@ -133,7 +118,7 @@ class Anoboy : MainAPI() {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.tags = genres
-                this.status = showStatus
+              
                 if (scoreText != null) this.score = Score.from10(scoreText)
                 if (!trailerUrl.isNullOrEmpty()) addTrailer(trailerUrl)
             }
@@ -142,7 +127,7 @@ class Anoboy : MainAPI() {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.tags = genres
-                this.status = showStatus
+               
                 if (scoreText != null) this.score = Score.from10(scoreText)
                 if (!trailerUrl.isNullOrEmpty()) addTrailer(trailerUrl)
             }
@@ -157,7 +142,6 @@ class Anoboy : MainAPI() {
     ): Boolean {
         val document = app.get(data).document
 
-        // Server base64 (sama seperti Anichin)
         document.select("select option[value*=eyJ], .mirror option").forEach { opt ->
             val b64 = opt.attr("value").takeIf { it.isNotEmpty() } ?: return@forEach
             runCatching {
@@ -167,7 +151,6 @@ class Anoboy : MainAPI() {
             }
         }
 
-        // Iframe langsung
         document.select("iframe[src]").forEach { iframe ->
             val src = fixUrl(iframe.attr("src")).takeIf { it.isNotEmpty() && !it.startsWith(mainUrl) }
                 ?: return@forEach
