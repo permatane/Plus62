@@ -63,12 +63,8 @@ class Anoboy : MainAPI() {
                 ?.takeIf { it.isNotEmpty() && !it.startsWith("data:image") }
         )
 
-        val epText = this.selectFirst("span.epx")?.text()?.trim()
-        val epNum = epText?.filter { it.isDigit() }?.toIntOrNull()
-
         return newAnimeSearchResponse(title, href, TvType.Anime) {
             this.posterUrl = posterUrl
-            if (epNum != null) this.episode = epNum
         }
     }
 
@@ -98,7 +94,6 @@ class Anoboy : MainAPI() {
 
         val genres = document.select(".genres a, .tags a").map { it.text().trim() }.filter { it.isNotEmpty() }
 
-        val statusText = document.selectFirst(".status, .post-status")?.text()?.trim()
         val scoreText = document.selectFirst(".score, .rating")?.text()?.trim()?.toDoubleOrNull()
         val trailerUrl = document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("src")
             ?: document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("href")
@@ -118,7 +113,6 @@ class Anoboy : MainAPI() {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.tags = genres
-              
                 if (scoreText != null) this.score = Score.from10(scoreText)
                 if (!trailerUrl.isNullOrEmpty()) addTrailer(trailerUrl)
             }
@@ -127,7 +121,6 @@ class Anoboy : MainAPI() {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.tags = genres
-               
                 if (scoreText != null) this.score = Score.from10(scoreText)
                 if (!trailerUrl.isNullOrEmpty()) addTrailer(trailerUrl)
             }
