@@ -93,20 +93,34 @@ class Anoboy : MainAPI() {
             ?.substringBefore("Genre")?.trim()
 
         val genres = document.select(".genres a, .tags a").map { it.text().trim() }.filter { it.isNotEmpty() }
-
         val scoreText = document.selectFirst(".score, .rating")?.text()?.trim()?.toDoubleOrNull()
         val trailerUrl = document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("src")
             ?: document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("href")
 
-        val episodes = document.select("div.eplister li a, .episodios li a, .episodes a").mapNotNull { ep ->
-            val epUrl = fixUrl(ep.attr("href"))
-            val epNum = ep.selectFirst(".ep-num, .episode-number")?.text()?.toIntOrNull()
-            newEpisode(epUrl) {
-                this.episode = epNum
-            }
-        }.reversed()
+        val episodes = mutableListOf<Episode>()
 
-        val isMovie = episodes.size <= 1
+        // Daftar episode di halaman
+        document.select("div.eplister li a, ul.episodios li a, div.episodios a, .ep-listing a, li.episod a").forEach { ep ->
+            val epUrl = fixUrl(ep.attr("href"))
+            val epNumText = ep.selectFirst(".ep-num, .episode-number, .num, .eps-num")?.text()?.toIntOrNull()
+                ?: ep.text().trim().filter { it.isDigit() }.toIntOrNull()
+            if (epUrl.isNotEmpty()) {
+                episodes.add(newEpisode(epUrl) {
+                    this.episode = epNumText
+                })
+            }
+        }
+
+        // Jika tidak ada daftar → URL itu sendiri = Episode 1/N
+        if (episodes.isEmpty()) {
+            val epNum = url.substringAfter("episode-").substringBefore("-").filter { it.isDigit() }.toIntOrNull()
+            episodes.add(newEpisode(url) {
+                this.episode = epNum
+            })
+        }
+
+        episodes.reverse()
+        val isMovie = episodes.size <= 1 && !url.contains("/episode-", ignoreCase = true)
 
         return if (isMovie) {
             newMovieLoadResponse(title, url, TvType.Movie, url) {
@@ -134,22 +148,47 @@ class Anoboy : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val document = app.get(data).document
+        var success = false
 
-        document.select("select option[value*=eyJ], .mirror option").forEach { opt ->
+        // ✅ SERVER: Base64 decode → Blogger/GoogleVideo URL
+        document.select("select.mirror option, select.server option, option[value*=eyJ]").forEach { opt ->
             val b64 = opt.attr("value").takeIf { it.isNotEmpty() } ?: return@forEach
             runCatching {
-                val decoded = Jsoup.parse(base64Decode(b64))
-                val iframe = decoded.selectFirst("iframe")?.attr("src") ?: return@forEach
-                loadExtractor(fixUrl(iframe), data, subtitleCallback, callback)
+                val decodedHtml = base64Decode(b64)
+                val decodedDoc = Jsoup.parse(decodedHtml)
+                var iframeSrc = decodedDoc.selectFirst("iframe")?.attr("src") ?: return@forEach
+
+                // Perbaiki URL relatif
+                iframeSrc = when {
+                    iframeSrc.startsWith("//") -> "https:$iframeSrc"
+                    iframeSrc.startsWith("/") -> fixUrl(iframeSrc)
+                    else -> iframeSrc
+                }
+
+                if (iframeSrc.isNotEmpty()) {
+                    success = true
+                    // ⭐ Kirim ke extractor bawaan: BloggerExtractor
+                    loadExtractor(iframeSrc, data, subtitleCallback, callback)
+                }
             }
         }
 
-        document.select("iframe[src]").forEach { iframe ->
-            val src = fixUrl(iframe.attr("src")).takeIf { it.isNotEmpty() && !it.startsWith(mainUrl) }
-                ?: return@forEach
-            loadExtractor(src, data, subtitleCallback, callback)
+        // ✅ IFRAME LANGSUNG
+        if (!success) {
+            document.select("iframe[src]").forEach { iframe ->
+                var src = iframe.attr("src")
+                src = when {
+                    src.startsWith("//") -> "https:$src"
+                    src.startsWith("/") -> fixUrl(src)
+                    else -> src
+                }
+                if (src.isNotEmpty() && !src.startsWith(mainUrl)) {
+                    success = true
+                    loadExtractor(src, data, subtitleCallback, callback)
+                }
+            }
         }
 
-        return true
+        return success
     }
 }
