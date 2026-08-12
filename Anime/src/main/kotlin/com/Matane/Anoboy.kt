@@ -40,7 +40,7 @@ class Anoboy : MainAPI() {
         }
         val document = app.get(url).documentLarge
 
-        val home = document.select("article.bs").mapNotNull { it.toSearchResult() }
+        val home = document.select("article.bs").mapNotNull { it.toSearchResultItem() }
         val hasNext = document.select("a.next, .nav-next, .page-nav a:contains(Next)").isNotEmpty()
 
         return newHomePageResponse(
@@ -53,7 +53,7 @@ class Anoboy : MainAPI() {
         )
     }
 
-    private fun Element.toSearchResult(): SearchResponse? {
+    private fun Element.toSearchResultItem(): SearchResponse? {
         val link = this.selectFirst("div.bsx > a") ?: return null
         val rawHref = link.attr("href")
         val rawTitleText = this.selectFirst("h2, .tt")?.text()?.trim() ?: return null
@@ -65,6 +65,12 @@ class Anoboy : MainAPI() {
 
         val episodeInfo = this.selectFirst("span.epx, .ep")?.text()?.trim()
         val episodeNumber = episodeInfo?.let { Regex("""(\d+)""").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+
+        val displayTitle = if (episodeNumber != null) {
+            "$cleanTitle — Ep $episodeNumber"
+        } else {
+            cleanTitle
+        }
 
         val animeHref = runCatching {
             val hrefClean = rawHref.removePrefix(mainUrl)
@@ -82,9 +88,8 @@ class Anoboy : MainAPI() {
                 ?.takeIf { it.isNotEmpty() && !it.startsWith("data:image") }
         )
 
-        return newAnimeSearchResponse(cleanTitle, animeHref, TvType.Anime) {
+        return newAnimeSearchResponse(displayTitle, animeHref, TvType.Anime) {
             this.posterUrl = posterImageUrl
-            if (episodeNumber != null) this.name = "$cleanTitle — Ep $episodeNumber"
         }
     }
 
@@ -92,7 +97,7 @@ class Anoboy : MainAPI() {
         val endpoint = "$mainUrl/?s=$query"
         return try {
             val doc = app.get(endpoint).documentLarge
-            doc.select("article.bs").mapNotNull { it.toSearchResult() }
+            doc.select("article.bs").mapNotNull { it.toSearchResultItem() }
         } catch (_: Exception) {
             emptyList()
         }
