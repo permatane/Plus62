@@ -36,7 +36,6 @@ class Anoboy : MainAPI() {
             }
         }
 
-        // ✅ Pastikan tidak mengembalikan null
         fun Element?.getIframeAttr(): String? {
             return this?.attr("data-litespeed-src")?.takeIf { it.isNotBlank() }
                 ?: this?.attr("data-src")?.takeIf { it.isNotBlank() }
@@ -115,7 +114,6 @@ class Anoboy : MainAPI() {
         val status = getStatus(statusText)
         val recommendations = document.select("div.listupd article.bs").mapNotNull { it.toRecommendResult() }
 
-        // ✅ Dibalik lalu diberi nomor urut yang benar
         val episodes = document.select("div.eplister ul li a")
             .reversed()
             .mapIndexed { index, aTag ->
@@ -175,7 +173,7 @@ class Anoboy : MainAPI() {
             }
         }
 
-        // 1. Player Utama — ✅ Perbaikan: aman dari null
+        // 1. Player Utama
         document.selectFirst("div.player-embed iframe")
             .getIframeAttr()
             ?.let { httpsify(it) }
@@ -185,7 +183,7 @@ class Anoboy : MainAPI() {
                 }
             }
 
-        // 2. Semua Mirror Server — ✅ Perbaikan: ganti toString → decodeToString
+        // 2. Semua Mirror Server — ✅ Kompatibel penuh: String(bytes, charset)
         val utf8 = Charsets.UTF_8
         val iso = Charsets.ISO_8859_1
 
@@ -195,11 +193,11 @@ class Anoboy : MainAPI() {
 
             val decoded = runCatching {
                 val bytes = base64Decode(b64)
-                val text = bytes.decodeToString(0, bytes.size, utf8)
+                val text = String(bytes, utf8)
                 AnoboyBlogger.extractUrlFromContent(text)
             }.getOrNull() ?: runCatching {
                 val bytes = base64Decode(b64)
-                val text = bytes.decodeToString(0, bytes.size, iso)
+                val text = String(bytes, iso)
                 AnoboyBlogger.extractUrlFromContent(text)
             }.getOrNull()
 
