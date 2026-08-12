@@ -9,6 +9,7 @@ import com.lagradost.cloudstream3.extractors.*
 class AnoboyPlugin: BasePlugin() {
     override fun load() {
         registerMainAPI(Anoboy()) 
+        registerExtractorAPI(AnoboyBlogger())
         registerExtractorAPI(ArchiveOrgExtractor())
         registerExtractorAPI(Ewish())
         registerExtractorAPI(Cda())
