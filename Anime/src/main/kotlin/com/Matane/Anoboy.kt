@@ -185,80 +185,57 @@ class Anoboy : MainAPI() {
     }
 
     // === FUNGSI UTAMA DIPERBAIKI: Ekstraksi link video ===
-    override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        val document = app.get(data).document
-        var foundAny = false
+override suspend fun loadLinks(
+    data: String,
+    isCasting: Boolean,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+): Boolean {
+    val document = app.get(data).document
+    var foundAny = false
+    val refererUrl = data  // URL halaman episode = Referer sah
 
-        // Langkah 1: Ekstrak iframe utama dari player-embed
-        val mainIframeUrl = document.selectFirst("div.player-embed iframe").getIframeAttr()
-        if (!mainIframeUrl.isNullOrBlank()) {
-            val fixedUrl = httpsify(mainIframeUrl)
-            loadExtractor(fixedUrl, data, subtitleCallback, callback)
-            foundAny = true
-        }
+    // ⭐ Beri tahu ekstraktor Blogger asal halamannya
+    AnoboyBlogger.refererOverride = refererUrl
 
-        // Langkah 2: Proses SEMUA pilihan mirror dengan dekode yang ditingkatkan
-        val mirrorOptions = document.select("select.mirror option[value]:not([disabled])")
-        for ((idx, opt) in mirrorOptions.withIndex()) {
-            val base64Val = opt.attr("value").replace("\\s".toRegex(), "")
-            if (base64Val.isBlank()) continue
-
-            try {
-                val decodedBytes = base64Decode(base64Val)
-                val decodedContent = decodedBytes.toString(Charsets.UTF_8)
-
-                // Ekstrak URL dari hasil dekode
-                val iframeUrl = extractUrlFromContent(decodedContent)
-                if (!iframeUrl.isNullOrBlank()) {
-                    val fixedUrl = httpsify(iframeUrl)
-                    loadExtractor(fixedUrl, data, subtitleCallback, callback)
-                    foundAny = true
-                }
-            } catch (e: Exception) {
-                // Coba dekode alternatif atau lewati
-                runCatching {
-                    val decodedBytes = base64Decode(base64Val)
-                    val decodedContent = decodedBytes.toString(Charsets.ISO_8859_1)
-                    val iframeUrl = extractUrlFromContent(decodedContent)
-                    if (!iframeUrl.isNullOrBlank()) {
-                        loadExtractor(httpsify(iframeUrl), data, subtitleCallback, callback)
-                        foundAny = true
-                    }
-                }
-            }
-        }
-
-        return foundAny
-    }
-
-    // === Helper: Ambil URL iframe dari berbagai kemungkinan atribut ===
-    private fun Element?.getIframeAttr(): String? {
-        return this?.attr("data-litespeed-src")?.takeIf { it.isNotBlank() }
-            ?: this?.attr("data-src")?.takeIf { it.isNotBlank() }
-            ?: this?.attr("src")?.takeIf { it.isNotBlank() }
-    }
-
-    private fun Element.getImageAttr(): String {
+    // Fungsi bantu normalisasi URL
+    fun httpsify(url: String): String {
         return when {
-            this.hasAttr("data-src") -> this.attr("abs:data-src")
-            this.hasAttr("data-lazy-src") -> this.attr("abs:data-lazy-src")
-            this.hasAttr("srcset") -> this.attr("abs:srcset").substringBefore(" ")
-            else -> this.attr("abs:src")
-        }
-    }
-
-    // === Normalisasi URL: tambahkan https: jika berawal // ===
-    private fun httpsify(url: String): String {
-        return when {
-            url.startsWith("//") -> "https:$url"
+            url.startsWith("//") -> "https:${url}"
             url.startsWith("/") -> "$mainUrl$url"
             !url.startsWith("http") -> "https://$url"
             else -> url
         }
     }
+
+    // 1️⃣ Proses player utama
+    document.selectFirst("div.player-embed iframe")
+        ?.getIframeAttr()
+        ?.let { httpsify(it) }
+        ?.let { url ->
+            if (loadExtractor(url, refererUrl, subtitleCallback, callback)) {
+                foundAny = true
+            }
+        }
+
+    // 2️⃣ Proses SEMUA mirror server (dekode Base64)
+    for (opt in document.select("select.mirror option[value]:not([disabled])")) {
+        val b64 = opt.attr("value").replace("\\s".toRegex(), "")
+        if (b64.isBlank()) continue
+
+        val decoded = runCatching {
+            AnoboyBlogger.extractUrlFromContent(base64Decode(b64).toString(Charsets.UTF_8))
+        }.getOrNull() ?: runCatching {
+            AnoboyBlogger.extractUrlFromContent(base64Decode(b64).toString(Charsets.ISO_8859_1))
+        }.getOrNull()
+
+        decoded?.let { httpsify(it) }?.let { url ->
+            if (loadExtractor(url, refererUrl, subtitleCallback, callback)) {
+                foundAny = true
+            }
+        }
+    }
+
+    return foundAny
+}
 }
