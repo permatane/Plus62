@@ -16,12 +16,18 @@ class Anoboy : MainAPI() {
     override val supportedTypes = setOf(TvType.Anime, TvType.Movie)
 
     override val mainPage = mainPageOf(
-        "anime/?status=&type=&order=update" to "Update Terbaru",
-        "anime/?sub=&order=latest" to "Baru ditambahkan",
-        "anime/?status=&type=&order=popular" to "Terpopuler",
-        "anime/?sub=&order=rating" to "Rating Tertinggi",
+        "" to "Latest Release",
+        "?status=ongoing" to "Sedang Tayang",
+        "?status=completed" to "Tamat",
+        "?order=popular" to "Paling Populer",
+        "?genre=action" to "Action",
+        "?genre=fantasy" to "Fantasy",
+        "?genre=comedy" to "Comedy",
+        "?genre=romance" to "Romance",
+        "?genre=isekai" to "Isekai",
+        "?genre=drama" to "Drama",
+        "?genre=adventure" to "Adventure"
     )
-
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page == 1) {
@@ -91,29 +97,49 @@ class Anoboy : MainAPI() {
         val trailerUrl = document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("src")
             ?: document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("href")
 
+        // ✅ AMBIL DAFTAR EPISODE DARI ENDPOINT AJAX TERPISAH
         val episodes = mutableListOf<Episode>()
+        val ajaxUrl = if (url.endsWith("/")) "${url}ajax_episodes" else "$url/ajax_episodes"
 
-        // Daftar episode di halaman
-        document.select("div.eplister li a, ul.episodios li a, div.episodios a, .ep-listing a, li.episod a").forEach { ep ->
-            val epUrl = fixUrl(ep.attr("href"))
-            val epNumText = ep.selectFirst(".ep-num, .episode-number, .num, .eps-num")?.text()?.toIntOrNull()
-                ?: ep.text().trim().filter { it.isDigit() }.toIntOrNull()
-            if (epUrl.isNotEmpty()) {
-                episodes.add(newEpisode(epUrl) {
-                    this.episode = epNumText
-                })
+        try {
+            val ajaxDoc = app.get(ajaxUrl).document
+
+            // Selektor episode sesuai struktur Anoboy
+            ajaxDoc.select("li a, a[href*=/episode/], .episod a").forEach { ep ->
+                val epUrl = fixUrl(ep.attr("href"))
+                val epText = ep.text().trim()
+
+                // ✅ PERBAIKAN NOMOR EPISODE: ambil angka pertama saja, buang angka tambahan
+                val epNum = Regex("""Episode\s*(\d+)""", RegexOption.IGNORE_CASE)
+                    .find(epText)?.groupValues?.get(1)?.toIntOrNull()
+                    ?: Regex("""(\d+)""").find(epText)?.groupValues?.get(1)?.toIntOrNull()
+
+                if (epUrl.isNotEmpty() && epNum != null) {
+                    episodes.add(newEpisode(epUrl) {
+                        this.episode = epNum
+                        this.name = epText
+                    })
+                }
+            }
+        } catch (e: Exception) {
+            // Fallback: jika AJAX gagal, ambil dari halaman utama
+            document.select("div.eplister li a, ul.episodios li a, a[href*=/episode/]").forEach { ep ->
+                val epUrl = fixUrl(ep.attr("href"))
+                val epText = ep.text().trim()
+                val epNum = Regex("""Episode\s*(\d+)""", RegexOption.IGNORE_CASE)
+                    .find(epText)?.groupValues?.get(1)?.toIntOrNull()
+                    ?: Regex("""(\d+)""").find(epText)?.groupValues?.get(1)?.toIntOrNull()
+
+                if (epUrl.isNotEmpty() && epNum != null) {
+                    episodes.add(newEpisode(epUrl) {
+                        this.episode = epNum
+                        this.name = epText
+                    })
+                }
             }
         }
 
-        // Jika tidak ada daftar → URL itu sendiri = Episode 1/N
-        if (episodes.isEmpty()) {
-            val epNum = url.substringAfter("episode-").substringBefore("-").filter { it.isDigit() }.toIntOrNull()
-            episodes.add(newEpisode(url) {
-                this.episode = epNum
-            })
-        }
-
-        episodes.reverse()
+        // Urutkan dari episode terlama ke terbaru
         val isMovie = episodes.size <= 1 && !url.contains("/episode-", ignoreCase = true)
 
         return if (isMovie) {
@@ -125,7 +151,7 @@ class Anoboy : MainAPI() {
                 if (!trailerUrl.isNullOrEmpty()) addTrailer(trailerUrl)
             }
         } else {
-            newTvSeriesLoadResponse(title, url, TvType.Anime, episodes) {
+            newTvSeriesLoadResponse(title, url, TvType.Anime, episodes.sortedBy { it.episode }) {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.tags = genres
@@ -144,7 +170,7 @@ class Anoboy : MainAPI() {
         val document = app.get(data).document
         var success = false
 
-        // ✅ SERVER: Base64 decode → Blogger/GoogleVideo URL
+        // Decode base64 → Blogger URL
         document.select("select.mirror option, select.server option, option[value*=eyJ]").forEach { opt ->
             val b64 = opt.attr("value").takeIf { it.isNotEmpty() } ?: return@forEach
             runCatching {
@@ -152,7 +178,6 @@ class Anoboy : MainAPI() {
                 val decodedDoc = Jsoup.parse(decodedHtml)
                 var iframeSrc = decodedDoc.selectFirst("iframe")?.attr("src") ?: return@forEach
 
-                // Perbaiki URL relatif
                 iframeSrc = when {
                     iframeSrc.startsWith("//") -> "https:$iframeSrc"
                     iframeSrc.startsWith("/") -> fixUrl(iframeSrc)
@@ -161,13 +186,12 @@ class Anoboy : MainAPI() {
 
                 if (iframeSrc.isNotEmpty()) {
                     success = true
-                    // ⭐ Kirim ke extractor bawaan: BloggerExtractor
                     loadExtractor(iframeSrc, data, subtitleCallback, callback)
                 }
             }
         }
 
-        // ✅ IFRAME LANGSUNG
+        // Iframe langsung
         if (!success) {
             document.select("iframe[src]").forEach { iframe ->
                 var src = iframe.attr("src")
