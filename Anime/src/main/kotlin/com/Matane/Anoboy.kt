@@ -1,202 +1,263 @@
 package com.Matane
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.LoadResponse.Companion.addScore
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import com.lagradost.cloudstream3.MainAPI
-import com.lagradost.cloudstream3.SearchResponse
-import com.lagradost.cloudstream3.TvType
-import com.lagradost.cloudstream3.base64Decode
-import com.lagradost.cloudstream3.mainPageOf
-import com.lagradost.cloudstream3.newEpisode
-import com.lagradost.cloudstream3.newMovieLoadResponse
-import com.lagradost.cloudstream3.newMovieSearchResponse
-import com.lagradost.cloudstream3.newTvSeriesLoadResponse
-import com.lagradost.cloudstream3.newTvSeriesSearchResponse
-import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.extractors.Gofile
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.loadExtractor
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import android.content.Context
 
 class Anoboy : MainAPI() {
+    // ============================================================
+    // 
+    // ============================================================
     override var mainUrl = "https://anoboy.be"
     override var name = "Anoboy"
     override val hasMainPage = true
-    override var lang = "id"
-    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
-
-    companion object {
-        var context: Context? = null
-
-        fun getStatus(t: String): ShowStatus {
-            return when (t.trim()) {
-                "Completed" -> ShowStatus.Completed
-                "Ongoing" -> ShowStatus.Ongoing
-                else -> ShowStatus.Completed
-            }
-        }
-
-        fun Element?.getIframeAttr(): String? {
-            return this?.attr("data-litespeed-src")?.takeIf { it.isNotBlank() }
-                ?: this?.attr("data-src")?.takeIf { it.isNotBlank() }
-                ?: this?.attr("src")?.takeIf { it.isNotBlank() }
-        }
-
-        fun Element.getImageAttr(): String {
-            return when {
-                hasAttr("data-src") -> attr("abs:data-src")
-                hasAttr("data-lazy-src") -> attr("abs:data-lazy-src")
-                hasAttr("srcset") -> attr("abs:srcset").substringBefore(" ")
-                else -> attr("abs:src")
-            }
-        }
-    }
-
-    override val mainPage = mainPageOf(
-        "anime/?status=&type=&order=update" to "Update Terbaru",
-        "anime/?sub=&order=latest" to "Baru ditambahkan",
-        "anime/?status=&type=&order=popular" to "Terpopuler",
-        "anime/?sub=&order=rating" to "Rating Tertinggi"
+    override val hasDownloadSupport = true
+    override val supportedTypes = setOf(
+        TvType.Anime,
+        TvType.AnimeMovie,
+        TvType.OVA
     )
 
+    // ============================================================
+    // Header anti-Cloudflare + blokir bot
+    // ============================================================
+    private val desktopUA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+        "AppleWebKit/537.36 (KHTML, like Gecko) " +
+        "Chrome/126.0.0.0 Safari/537.36"
+
+    private val defaultHeaders = mapOf(
+        "User-Agent" to desktopUA,
+        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language" to "id-ID,id;q=0.8,en-US;q=0.5,en;q=0.3",
+        "Referer" to mainUrl
+    )
+
+    // ============================================================
+    // [FIX #3] Daftarkan Gofile — SUDAH ADA di library CloudStream!
+    // Tidak perlu buat extractor sendiri, cukup register host-nya
+    // ============================================================
+    init {
+        // Gofile resmi: https://recloudstream.github.io/dokka/library/.../-gofile/
+        registerExtractorAPI(Gofile().apply {
+            mainUrl = "https://gofile.io"
+        })
+        // Fallback host gofile.cc / gofile.wiki (mirror sering ganti)
+        registerExtractorAPI(Gofile().apply {
+            mainUrl = "https://gofile.cc"
+        })
+    }
+
+    // ============================================================
+    // Helper: request dengan header konsisten
+    // ============================================================
+    private suspend fun getDoc(url: String): Document {
+        return app.get(url, headers = defaultHeaders).document
+    }
+
+    // ============================================================
+    // HALAMAN UTAMA
+    // ============================================================
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = "$mainUrl/${request.data}&page=$page"
-        val document = app.get(url).document
-        val items = document.select("div.listupd article.bs").mapNotNull { it.toSearchResult() }
-        return newHomePageResponse(HomePageList(request.name, items), hasNext = items.isNotEmpty())
-    }
+        val doc = getDoc(mainUrl)
+        val items = ArrayList<HomePageList>()
 
-    private fun Element.toSearchResult(): SearchResponse? {
-        val linkElement = selectFirst("a") ?: return null
-        val href = fixUrl(linkElement.attr("href").orEmpty())
-        val title = linkElement.attr("title").ifBlank { selectFirst("div.tt")?.text() } ?: return null
-        val poster = selectFirst("img")?.getImageAttr()?.let { fixUrlNull(it) }
-        val isSeries = href.contains("/series/", true) || href.contains("drama", true)
-        return if (isSeries) {
-            newTvSeriesSearchResponse(title, href, TvType.TvSeries) { posterUrl = poster }
-        } else {
-            newMovieSearchResponse(title, href, TvType.Movie) { posterUrl = poster }
+        // Anime Terbaru (update-anime)
+        val latest = doc.select(".post-show article").mapNotNull { el ->
+            el.toSearchResponse()
         }
+        if (latest.isNotEmpty()) items.add(HomePageList("Episode Terbaru", latest))
+
+        // Anime Populer
+        val popular = doc.select(".sidebar .widget:nth-child(2) li").mapNotNull { el ->
+            val a = el.selectFirst("a") ?: return@mapNotNull null
+            val title = a.attr("title").ifBlank { a.text() }
+            val href = fixUrl(a.attr("href"))
+            val img = el.selectFirst("img")?.attr("src")
+            newAnimeSearchResponse(title, href, TvType.Anime) {
+                this.posterUrl = img
+            }
+        }
+        if (popular.isNotEmpty()) items.add(HomePageList("Populer", popular))
+
+        return HomePageResponse(items)
     }
 
+    // ============================================================
+    // PENCARIAN
+    // ============================================================
     override suspend fun search(query: String): List<SearchResponse> {
-        val document = app.get("$mainUrl/?s=$query", timeout = 50L).document
-        return document.select("div.listupd article.bs").mapNotNull { it.toSearchResult() }
-    }
+        val url = "$mainUrl/?s=${query.replace(" ", "+")}"
+        val doc = getDoc(url)
 
-    private fun Element.toRecommendResult(): SearchResponse? {
-        val title = selectFirst("div.tt")?.text()?.trim() ?: return null
-        val linkElement = selectFirst("a") ?: return null
-        val href = fixUrl(linkElement.attr("href").orEmpty())
-        val posterUrl = selectFirst("img")?.getImageAttr()?.let { fixUrlNull(it) }
-        return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = posterUrl }
-    }
-
-    override suspend fun load(url: String): LoadResponse {
-        val document = app.get(url).document
-
-        val title = document.selectFirst("h1.entry-title")?.text()?.trim().orEmpty()
-        val poster = document.selectFirst("div.bigcontent img")?.getImageAttr()?.let { fixUrlNull(it) }
-        val description = document.select("div.entry-content p").joinToString("\n") { it.text() }.trim()
-
-        val year = document.selectFirst("span:matchesOwn(Dirilis:)")?.ownText()
-            ?.filter { it.isDigit() }?.take(4)?.toIntOrNull()
-        val duration = document.selectFirst("div.spe span:contains(Durasi:)")?.ownText()?.let {
-            val h = Regex("(\\d+)\\s*hr").find(it)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-            val m = Regex("(\\d+)\\s*min").find(it)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-            h * 60 + m
-        }
-        val tags = document.select("div.genxed a").map { it.text() }
-        val rating = document.selectFirst("div.rating strong")
-            ?.text()?.replace("Rating", "", ignoreCase = true)?.trim()?.toDoubleOrNull()
-        val trailer = document.selectFirst("div.bixbox.trailer iframe")?.attr("src")
-        val statusText = document.selectFirst("div.info-content div.spe span")
-            ?.ownText()?.replace(":", "")?.trim()
-        val status = getStatus(statusText)
-        val recommendations = document.select("div.listupd article.bs").mapNotNull { it.toRecommendResult() }
-
-        // ✅ BARIS 114 — POLA .orEmpty() → DIJAMIN String non-null
-        val episodes = document.select("div.eplister ul li a")
-            .reversed()
-            .mapIndexed { index, aTag ->
-                val href = fixUrl(aTag.attr("href").orEmpty())
-                val num = index + 1
-                newEpisode(href) {
-                    this.name = "Episode $num"
-                    this.episode = num
-                }
-            }
-
-        return if (episodes.size > 1) {
-            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
-                this.posterUrl = poster
-                this.year = year
-                this.plot = description
-                this.tags = tags
-                showStatus = status
-                this.recommendations = recommendations
-                this.duration = duration ?: 0
-                trailer?.let { addTrailer(it) }
-                if (rating != null) addScore(rating.toString(), 10)
-            }
-        } else {
-            newMovieLoadResponse(title, url, TvType.Movie, episodes.firstOrNull()?.data ?: url) {
-                this.posterUrl = poster
-                this.year = year
-                this.plot = description
-                this.tags = tags
-                this.recommendations = recommendations
-                this.duration = duration ?: 0
-                if (rating != null) addScore(rating.toString(), 10)
-            }
+        return doc.select(".result-item, .post-show article").mapNotNull { el ->
+            el.toSearchResponse()
         }
     }
 
+    // ============================================================
+    // LOAD DETAIL SERIES / HALAMAN EPISODE
+    // ============================================================
+    override suspend fun load(url: String): LoadResponse? {
+        val doc = getDoc(url)
+
+        // Deteksi: ini halaman episode BUKAN halaman series?
+        val isEpisodePage = doc.selectFirst(".download-eps") != null &&
+                            url.contains(Regex("/episode-\\d+", RegexOption.IGNORE_CASE))
+
+        val title = doc.selectFirst("h1.entry-title, h1.title")?.text()
+            ?.replace(Regex("\\s+Subtitle\\s+Indonesia.*$", RegexOption.IGNORE_CASE), "")
+            ?.trim() ?: return null
+
+        val poster = doc.selectFirst(".post-body img, .thumb img, .poster img")
+            ?.let { it.attr("src").ifBlank { it.attr("data-src") } }
+
+        val sinopsis = doc.select(".sinopsis, .post-body p")
+            .firstOrNull { it.text().length > 80 }
+            ?.text()
+
+        val genre = doc.select(".genre a, .tagcloud a").map { it.text().trim() }
+
+        // ===== KASUS 1: User membuka HALAMAN EPISODE langsung =====
+        if (isEpisodePage) {
+            val epNum = Regex("episode[\\s-]+(\\d+)", RegexOption.IGNORE_CASE)
+                .find(title)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 1
+
+            // Buat series "semu" dengan 1 episode
+            return newAnimeLoadResponse(title, url, TvType.Anime) {
+                this.posterUrl = poster
+                this.plot = sinopsis
+                this.tags = genre
+                addEpisode(
+                    AnoboyData(
+                        name = title,
+                        url = url,
+                        episode = epNum,
+                        posterUrl = poster
+                    )
+                )
+            }
+        }
+
+        // ===== KASUS 2: Halaman SERIES — ambil daftar semua episode =====
+        val episodes = doc.select(".episodelist a, .listeps a").mapNotNull { a ->
+            val epTitle = a.attr("title").ifBlank { a.text() }
+            val epHref = fixUrl(a.attr("href"))
+            val num = Regex("(\\d+)(?:\\s*end)?$", RegexOption.IGNORE_CASE)
+                .find(epTitle)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+            Episode(num, epHref, epTitle)
+        }.reversed() // episode tertua di atas
+
+        if (episodes.isEmpty()) return null
+
+        return newAnimeLoadResponse(title, url, TvType.Anime) {
+            this.posterUrl = poster
+            this.plot = sinopsis
+            this.tags = genre
+            this.episodes = episodes
+        }
+    }
+
+    // ============================================================
+    // [FIX UTAMA] LOAD LINKS — ekstrak Gofile & kirim ke player
+    // ============================================================
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val document = app.get(data).document
-        var foundAny = false
-        val refererUrl = data
+        val doc = try {
+            getDoc(data)
+        } catch (e: Exception) {
+            return false
+        }
 
-        AnoboyBlogger.refererOverride = refererUrl
+        // [FIX #2] Selector DOWNLOAD — disesuaikan Agustus 2026
+        // Struktur: <div class="download-eps">
+        //             <strong>720p</strong>
+        //             <a href="https://gofile.io/d/xxxx">gofile</a>
+        //           </div>
+        val links = doc.select(".download-eps a, .download a").mapNotNull { a ->
+            val href = a.attr("href").trim()
+            if (href.isBlank() || href == "#") return@mapNotNull null
 
-        fun httpsify(url: String): String {
-            return when {
-                url.startsWith("//") -> "https:${url}"
-                url.startsWith("/") -> "$mainUrl$url"
-                !url.startsWith("http") -> "https://$url"
-                else -> url
+            val qualityText = a.previousElementSibling()?.text()
+                ?.filter { it.isDigit() }
+                ?.toIntOrNull()
+                ?: Regex("(\\d{3,4})p?").find(a.parent()?.text() ?: "")
+                    ?.groupValues?.getOrNull(1)?.toIntOrNull()
+
+            val quality = when (qualityText) {
+                in 200..399 -> Qualities.P360.value
+                in 400..540 -> Qualities.P480.value
+                in 650..799 -> Qualities.P720.value
+                in 900..1100 -> Qualities.P1080.value
+                else -> Qualities.Unknown.value
+            }
+
+            Pair(href, quality)
+        }
+
+        if (links.isEmpty()) return false
+
+        // Untuk SETIAP link download → lewati ke extractor resmi CloudStream
+        links.forEach { (url, quality) ->
+            try {
+                // [FIX #3] Pakai loadExtractor() — otomatis pilih Gofile extractor
+                // yang sudah kita register di init{}
+                loadExtractor(
+                    url = url,
+                    referer = data,
+                    subtitleCallback = subtitleCallback,
+                    callback = { link ->
+                        // Override kualitas supaya akurat di UI
+                        callback.invoke(
+                            link.copy(
+                                quality = if (link.quality == Qualities.Unknown.value)
+                                    quality else link.quality
+                            )
+                        )
+                    }
+                )
+            } catch (_: Exception) {
+                // Skip link gagal, lanjut ke mirror berikutnya
             }
         }
 
-        document.selectFirst("div.player-embed iframe")
-            .getIframeAttr()
-            ?.let { httpsify(it) }
-            ?.let { url ->
-                if (loadExtractor(url, refererUrl, subtitleCallback, callback)) {
-                    foundAny = true
-                }
-            }
+        return true
+    }
 
-        for (opt in document.select("select.mirror option[value]:not([disabled])")) {
-            val b64 = opt.attr("value").replace("\\s".toRegex(), "")
-            if (b64.isBlank()) continue
-
-            val decoded = runCatching {
-                val text = base64Decode(b64)
-                AnoboyBlogger.extractUrlFromContent(text)
-            }.getOrNull()
-
-            decoded?.let { httpsify(it) }?.let { url ->
-                if (loadExtractor(url, refererUrl, subtitleCallback, callback)) {
-                    foundAny = true
-                }
-            }
+    // ============================================================
+    // Helper: Element → SearchResponse
+    // ============================================================
+    private fun Element.toSearchResponse(): SearchResponse? {
+        val a = selectFirst("a[href]") ?: return null
+        val title = a.attr("title").ifBlank { a.text() }
+            .replace(Regex("\\s+Subtitle\\s+Indonesia.*$", RegexOption.IGNORE_CASE), "")
+            .trim()
+        val href = fixUrl(a.attr("href"))
+        val img = selectFirst("img")?.let {
+            it.attr("src").ifBlank { it.attr("data-src") }
         }
+        return newAnimeSearchResponse(title, href, TvType.Anime) {
+            this.posterUrl = img
+            addDubStatus(DubStatus.Subbed)
+        }
+    }
 
-        return foundAny
+    // ============================================================
+    // Data class untuk episode dari halaman episode langsung
+    // ============================================================
+    data class AnoboyData(
+        val name: String,
+        val url: String,
+        val episode: Int,
+        val posterUrl: String? = null
+    ) : EpisodeData {
+        override fun toString(): String = url
     }
 }
