@@ -15,7 +15,7 @@ class Anoboy : MainAPI() {
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Anime, TvType.Movie)
 
-    // ✅ 100% URL SESUAI ASLI Anoboy
+    // ✅ URL SESUAI ASLI Anoboy
     override val mainPage = mainPageOf(
         "anime/?status=&type=&order=update" to "Update Terbaru",
         "anime/?sub=&order=latest" to "Baru ditambahkan",
@@ -33,7 +33,6 @@ class Anoboy : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        // ✅ Paginasi: tambah &page=N
         val separator = if (request.data.contains("?")) "&" else "?"
         val url = if (page == 1) {
             "$mainUrl/${request.data}"
@@ -60,17 +59,15 @@ class Anoboy : MainAPI() {
         val rawHref = link.attr("href")
         val rawTitle = this.selectFirst("h2, .tt")?.text()?.trim() ?: return null
 
-        // Bersihkan judul: hapus "Episode XX Subtitle Indonesia"
         val cleanTitle = rawTitle
             .replace(Regex("\\s*Episode\\s*\\d+.*$", RegexOption.IGNORE_CASE), "")
             .replace(Regex("\\s*Subtitle\\s+Indonesia$", RegexOption.IGNORE_CASE), "")
             .trim()
 
-        // Ekstrak nomor episode
-        val epText = this.selectFirst("span.epx, .ep")?.text()?.trim()
-        val epNum = epText?.let { Regex("""(\d+)""").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+        // ✅ GUNAKAN NAMA VARIABEL TIDAK DIUBAH
+        val epTextVal = this.selectFirst("span.epx, .ep")?.text()?.trim()
+        val epNum = epTextVal?.let { Regex("""(\d+)""").find(it)?.groupValues?.get(1)?.toIntOrNull() }
 
-        // Normalisasi URL: /judul-episode-xx/ → /anime/judul/
         val animeHref = runCatching {
             val href = rawHref.removePrefix(mainUrl)
             val parts = href.split("/").filter { it.isNotEmpty() }
@@ -126,7 +123,6 @@ class Anoboy : MainAPI() {
         val trailerUrl = document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("src")
             ?: document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("href")
 
-        // Ambil daftar episode dari AJAX
         val episodes = mutableListOf<Episode>()
         val ajaxUrl = if (url.endsWith("/")) "${url}ajax_episodes" else "$url/ajax_episodes"
 
@@ -134,30 +130,30 @@ class Anoboy : MainAPI() {
             val ajaxDoc = app.get(ajaxUrl).document
             ajaxDoc.select("a[href*=/episode/]").forEach { ep ->
                 val epUrl = fixUrl(ep.attr("href"))
-                val epText = ep.text().trim()
+                val epTextContent = ep.text().trim()
                 val epNum = Regex("""Episode\s*(\d+)""", RegexOption.IGNORE_CASE)
-                    .find(epText)?.groupValues?.get(1)?.toIntOrNull()
-                    ?: Regex("""(\d+)""").find(epText)?.groupValues?.get(1)?.toIntOrNull()
+                    .find(epTextContent)?.groupValues?.get(1)?.toIntOrNull()
+                    ?: Regex("""(\d+)""").find(epTextContent)?.groupValues?.get(1)?.toIntOrNull()
 
                 if (epUrl.isNotEmpty() && epNum != null) {
                     episodes.add(newEpisode(epUrl) {
                         this.episode = epNum
-                        this.name = epText
+                        this.name = epTextContent
                     })
                 }
             }
         } catch (_: Exception) {
             document.select("a[href*=/episode/]").forEach { ep ->
                 val epUrl = fixUrl(ep.attr("href"))
-                val epText = ep.text().trim()
+                val epTextContent = ep.text().trim()
                 val epNum = Regex("""Episode\s*(\d+)""", RegexOption.IGNORE_CASE)
-                    .find(epText)?.groupValues?.get(1)?.toIntOrNull()
-                    ?: Regex("""(\d+)""").find(epText)?.groupValues?.get(1)?.toIntOrNull()
+                    .find(epTextContent)?.groupValues?.get(1)?.toIntOrNull()
+                    ?: Regex("""(\d+)""").find(epTextContent)?.groupValues?.get(1)?.toIntOrNull()
 
                 if (epUrl.isNotEmpty() && epNum != null) {
                     episodes.add(newEpisode(epUrl) {
                         this.episode = epNum
-                        this.name = epText
+                        this.name = epTextContent
                     })
                 }
             }
