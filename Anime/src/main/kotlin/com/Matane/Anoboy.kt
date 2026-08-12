@@ -16,18 +16,12 @@ class Anoboy : MainAPI() {
     override val supportedTypes = setOf(TvType.Anime, TvType.Movie)
 
     override val mainPage = mainPageOf(
-        "" to "Latest Release",
-        "?status=ongoing" to "Sedang Tayang",
-        "?status=completed" to "Tamat",
-        "?order=popular" to "Paling Populer",
-        "?genre=action" to "Action",
-        "?genre=fantasy" to "Fantasy",
-        "?genre=comedy" to "Comedy",
-        "?genre=romance" to "Romance",
-        "?genre=isekai" to "Isekai",
-        "?genre=drama" to "Drama",
-        "?genre=adventure" to "Adventure"
+        "anime/?status=&type=&order=update" to "Update Terbaru",
+        "anime/?sub=&order=latest" to "Baru ditambahkan",
+        "anime/?status=&type=&order=popular" to "Terpopuler",
+        "anime/?sub=&order=rating" to "Rating Tertinggi",
     )
+
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page == 1) {
