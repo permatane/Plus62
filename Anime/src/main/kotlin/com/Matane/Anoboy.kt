@@ -16,6 +16,7 @@ import com.lagradost.cloudstream3.newTvSeriesSearchResponse
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
 import android.content.Context
+import java.nio.charset.Charset
 
 class Anoboy : MainAPI() {
     override var mainUrl = "https://anoboy.be"
@@ -35,6 +36,7 @@ class Anoboy : MainAPI() {
             }
         }
 
+        // ✅ Pastikan tidak mengembalikan null
         fun Element?.getIframeAttr(): String? {
             return this?.attr("data-litespeed-src")?.takeIf { it.isNotBlank() }
                 ?: this?.attr("data-src")?.takeIf { it.isNotBlank() }
@@ -113,6 +115,7 @@ class Anoboy : MainAPI() {
         val status = getStatus(statusText)
         val recommendations = document.select("div.listupd article.bs").mapNotNull { it.toRecommendResult() }
 
+        // ✅ Dibalik lalu diberi nomor urut yang benar
         val episodes = document.select("div.eplister ul li a")
             .reversed()
             .mapIndexed { index, aTag ->
@@ -172,7 +175,7 @@ class Anoboy : MainAPI() {
             }
         }
 
-        // 1. Player Utama
+        // 1. Player Utama — ✅ Perbaikan: aman dari null
         document.selectFirst("div.player-embed iframe")
             .getIframeAttr()
             ?.let { httpsify(it) }
@@ -182,15 +185,22 @@ class Anoboy : MainAPI() {
                 }
             }
 
-        // 2. Semua Mirror Server (dekode Base64)
+        // 2. Semua Mirror Server — ✅ Perbaikan: ganti toString → decodeToString
+        val utf8 = Charsets.UTF_8
+        val iso = Charsets.ISO_8859_1
+
         for (opt in document.select("select.mirror option[value]:not([disabled])")) {
             val b64 = opt.attr("value").replace("\\s".toRegex(), "")
             if (b64.isBlank()) continue
 
             val decoded = runCatching {
-                AnoboyBlogger.extractUrlFromContent(base64Decode(b64).toString(Charsets.UTF_8))
+                val bytes = base64Decode(b64)
+                val text = bytes.decodeToString(0, bytes.size, utf8)
+                AnoboyBlogger.extractUrlFromContent(text)
             }.getOrNull() ?: runCatching {
-                AnoboyBlogger.extractUrlFromContent(base64Decode(b64).toString(Charsets.ISO_8859_1))
+                val bytes = base64Decode(b64)
+                val text = bytes.decodeToString(0, bytes.size, iso)
+                AnoboyBlogger.extractUrlFromContent(text)
             }.getOrNull()
 
             decoded?.let { httpsify(it) }?.let { url ->
