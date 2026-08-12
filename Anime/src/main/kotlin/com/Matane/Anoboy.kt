@@ -67,7 +67,7 @@ class Anoboy : MainAPI() {
 
     private fun Element.toSearchResult(): SearchResponse? {
         val linkElement = selectFirst("a") ?: return null
-        val href = fixUrl(linkElement.attr("href"))
+        val href = fixUrl(linkElement.attr("href") ?: "")
         val title = linkElement.attr("title").ifBlank { selectFirst("div.tt")?.text() } ?: return null
         val poster = selectFirst("img")?.getImageAttr()?.let { fixUrlNull(it) }
         val isSeries = href.contains("/series/", true) || href.contains("drama", true)
@@ -113,13 +113,13 @@ class Anoboy : MainAPI() {
         val status = getStatus(statusText)
         val recommendations = document.select("div.listupd article.bs").mapNotNull { it.toRecommendResult() }
 
-        // ✅ Perbaikan baris 114: pastikan href tidak null
+        // ✅ BARIS 113 DIPERBAIKI: attr("href") bisa null → tambahkan ?: ""
         val episodes = document.select("div.eplister ul li a")
             .reversed()
             .mapIndexed { index, aTag ->
-                val href = fixUrl(aTag.attr("href"))
+                val href = fixUrl(aTag.attr("href") ?: "")  // ✅ Jamin String tidak null
                 val num = index + 1
-                newEpisode(href) {  // ✅ href sudah pasti String non-null
+                newEpisode(href) {
                     this.name = "Episode $num"
                     this.episode = num
                 }
@@ -150,7 +150,7 @@ class Anoboy : MainAPI() {
         }
     }
 
-    // ✅ Fungsi Pemutar Video — Sesuai tanda tangan asli base64Decode
+    // ✅ Fungsi Pemutar Video — base64Decode langsung String
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -161,7 +161,6 @@ class Anoboy : MainAPI() {
         var foundAny = false
         val refererUrl = data
 
-        // Atur Referer agar token Blogger sah
         AnoboyBlogger.refererOverride = refererUrl
 
         fun httpsify(url: String): String {
@@ -183,17 +182,12 @@ class Anoboy : MainAPI() {
                 }
             }
 
-        // 2. Semua Mirror Server — ✅ base64Decode LANGSUNG menghasilkan String!
+        // 2. Semua Mirror Server — base64Decode langsung String
         for (opt in document.select("select.mirror option[value]:not([disabled])")) {
             val b64 = opt.attr("value").replace("\\s".toRegex(), "")
             if (b64.isBlank()) continue
 
             val decoded = runCatching {
-                // ⭐ base64Decode langsung kembalikan String, TIDAK PERLU String(bytes) lagi!
-                val text = base64Decode(b64)
-                AnoboyBlogger.extractUrlFromContent(text)
-            }.getOrNull() ?: runCatching {
-                // fallback: coba tanpa asumsi charset
                 val text = base64Decode(b64)
                 AnoboyBlogger.extractUrlFromContent(text)
             }.getOrNull()
