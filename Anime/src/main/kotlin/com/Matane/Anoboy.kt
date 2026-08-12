@@ -15,7 +15,6 @@ class Anoboy : MainAPI() {
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Anime, TvType.Movie)
 
-    // ✅ URL SESUAI ASLI Anoboy
     override val mainPage = mainPageOf(
         "anime/?status=&type=&order=update" to "Update Terbaru",
         "anime/?sub=&order=latest" to "Baru ditambahkan",
@@ -57,20 +56,19 @@ class Anoboy : MainAPI() {
     private fun Element.toSearchResult(): SearchResponse? {
         val link = this.selectFirst("div.bsx > a") ?: return null
         val rawHref = link.attr("href")
-        val rawTitle = this.selectFirst("h2, .tt")?.text()?.trim() ?: return null
+        val rawTitleText = this.selectFirst("h2, .tt")?.text()?.trim() ?: return null
 
-        val cleanTitle = rawTitle
+        val cleanTitle = rawTitleText
             .replace(Regex("\\s*Episode\\s*\\d+.*$", RegexOption.IGNORE_CASE), "")
             .replace(Regex("\\s*Subtitle\\s+Indonesia$", RegexOption.IGNORE_CASE), "")
             .trim()
 
-        // ✅ GUNAKAN NAMA VARIABEL TIDAK DIUBAH
-        val epTextVal = this.selectFirst("span.epx, .ep")?.text()?.trim()
-        val epNum = epTextVal?.let { Regex("""(\d+)""").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+        val episodeInfo = this.selectFirst("span.epx, .ep")?.text()?.trim()
+        val episodeNumber = episodeInfo?.let { Regex("""(\d+)""").find(it)?.groupValues?.get(1)?.toIntOrNull() }
 
         val animeHref = runCatching {
-            val href = rawHref.removePrefix(mainUrl)
-            val parts = href.split("/").filter { it.isNotEmpty() }
+            val hrefClean = rawHref.removePrefix(mainUrl)
+            val parts = hrefClean.split("/").filter { it.isNotEmpty() }
             if (parts.isNotEmpty() && parts.last().startsWith("episode-", ignoreCase = true)) {
                 val slug = parts.dropLast(1).joinToString("/")
                 fixUrl("/$slug/")
@@ -79,14 +77,14 @@ class Anoboy : MainAPI() {
             }
         }.getOrElse { fixUrl(rawHref) }
 
-        val posterUrl = fixUrlNull(
+        val posterImageUrl = fixUrlNull(
             this.selectFirst("img")?.attr("src")
                 ?.takeIf { it.isNotEmpty() && !it.startsWith("data:image") }
         )
 
         return newAnimeSearchResponse(cleanTitle, animeHref, TvType.Anime) {
-            this.posterUrl = posterUrl
-            if (epNum != null) this.name = "$cleanTitle — Ep $epNum"
+            this.posterUrl = posterImageUrl
+            if (episodeNumber != null) this.name = "$cleanTitle — Ep $episodeNumber"
         }
     }
 
@@ -103,80 +101,80 @@ class Anoboy : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).documentLarge
 
-        val rawTitle = document.selectFirst("h1")?.text()?.trim() ?: "Anime"
-        val title = rawTitle
+        val rawPageTitle = document.selectFirst("h1")?.text()?.trim() ?: "Anime"
+        val titleClean = rawPageTitle
             .replace(Regex("\\s*Episode\\s*\\d+.*$", RegexOption.IGNORE_CASE), "")
             .replace(Regex("\\s*Subtitle\\s+Indonesia$", RegexOption.IGNORE_CASE), "")
             .trim()
 
-        val posterUrl = fixUrlNull(
+        val posterUrlFinal = fixUrlNull(
             document.selectFirst("div.thumb img, .poster img, img.wp-post-image")?.attr("src")
                 ?.ifEmpty { document.selectFirst("meta[property=og:image]")?.attr("content") }
                 ?.takeIf { !it.isNullOrEmpty() && !it.startsWith("data:image") }
         )
 
-        val plot = document.selectFirst(".synopsis, .description, div.entry-content")?.text()?.trim()
+        val plotSummary = document.selectFirst(".synopsis, .description, div.entry-content")?.text()?.trim()
             ?.substringBefore("Genre")?.trim()
 
-        val genres = document.select(".genres a, .tags a").map { it.text().trim() }.filter { it.isNotEmpty() }
-        val scoreText = document.selectFirst(".score, .rating, .numscore")?.text()?.trim()?.toDoubleOrNull()
-        val trailerUrl = document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("src")
+        val genreList = document.select(".genres a, .tags a").map { it.text().trim() }.filter { it.isNotEmpty() }
+        val scoreValue = document.selectFirst(".score, .rating, .numscore")?.text()?.trim()?.toDoubleOrNull()
+        val trailerLink = document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("src")
             ?: document.selectFirst("iframe[src*=youtube], a[href*=youtu]")?.attr("href")
 
-        val episodes = mutableListOf<Episode>()
-        val ajaxUrl = if (url.endsWith("/")) "${url}ajax_episodes" else "$url/ajax_episodes"
+        val episodesList = mutableListOf<Episode>()
+        val ajaxEndpoint = if (url.endsWith("/")) "${url}ajax_episodes" else "$url/ajax_episodes"
 
         try {
-            val ajaxDoc = app.get(ajaxUrl).document
-            ajaxDoc.select("a[href*=/episode/]").forEach { ep ->
-                val epUrl = fixUrl(ep.attr("href"))
-                val epTextContent = ep.text().trim()
-                val epNum = Regex("""Episode\s*(\d+)""", RegexOption.IGNORE_CASE)
-                    .find(epTextContent)?.groupValues?.get(1)?.toIntOrNull()
-                    ?: Regex("""(\d+)""").find(epTextContent)?.groupValues?.get(1)?.toIntOrNull()
+            val ajaxDocument = app.get(ajaxEndpoint).document
+            ajaxDocument.select("a[href*=/episode/]").forEach { epAnchor ->
+                val epFullUrl = fixUrl(epAnchor.attr("href"))
+                val epDisplayText = epAnchor.text().trim()
+                val extractedNum = Regex("""Episode\s*(\d+)""", RegexOption.IGNORE_CASE)
+                    .find(epDisplayText)?.groupValues?.get(1)?.toIntOrNull()
+                    ?: Regex("""(\d+)""").find(epDisplayText)?.groupValues?.get(1)?.toIntOrNull()
 
-                if (epUrl.isNotEmpty() && epNum != null) {
-                    episodes.add(newEpisode(epUrl) {
-                        this.episode = epNum
-                        this.name = epTextContent
+                if (epFullUrl.isNotEmpty() && extractedNum != null) {
+                    episodesList.add(newEpisode(epFullUrl) {
+                        this.episode = extractedNum
+                        this.name = epDisplayText
                     })
                 }
             }
         } catch (_: Exception) {
-            document.select("a[href*=/episode/]").forEach { ep ->
-                val epUrl = fixUrl(ep.attr("href"))
-                val epTextContent = ep.text().trim()
-                val epNum = Regex("""Episode\s*(\d+)""", RegexOption.IGNORE_CASE)
-                    .find(epTextContent)?.groupValues?.get(1)?.toIntOrNull()
-                    ?: Regex("""(\d+)""").find(epTextContent)?.groupValues?.get(1)?.toIntOrNull()
+            document.select("a[href*=/episode/]").forEach { epAnchor ->
+                val epFullUrl = fixUrl(epAnchor.attr("href"))
+                val epDisplayText = epAnchor.text().trim()
+                val extractedNum = Regex("""Episode\s*(\d+)""", RegexOption.IGNORE_CASE)
+                    .find(epDisplayText)?.groupValues?.get(1)?.toIntOrNull()
+                    ?: Regex("""(\d+)""").find(epDisplayText)?.groupValues?.get(1)?.toIntOrNull()
 
-                if (epUrl.isNotEmpty() && epNum != null) {
-                    episodes.add(newEpisode(epUrl) {
-                        this.episode = epNum
-                        this.name = epTextContent
+                if (epFullUrl.isNotEmpty() && extractedNum != null) {
+                    episodesList.add(newEpisode(epFullUrl) {
+                        this.episode = extractedNum
+                        this.name = epDisplayText
                     })
                 }
             }
         }
 
-        val sortedEpisodes = episodes.sortedBy { it.episode }
-        val isMovie = sortedEpisodes.size <= 1 && !url.contains("/episode-", ignoreCase = true)
+        val sortedEpisodes = episodesList.sortedBy { it.episode }
+        val isMovieFlag = sortedEpisodes.size <= 1 && !url.contains("/episode-", ignoreCase = true)
 
-        return if (isMovie) {
-            newMovieLoadResponse(title, url, TvType.Movie, url) {
-                this.posterUrl = posterUrl
-                this.plot = plot
-                this.tags = genres
-                if (scoreText != null) this.score = Score.from10(scoreText)
-                if (!trailerUrl.isNullOrEmpty()) addTrailer(trailerUrl)
+        return if (isMovieFlag) {
+            newMovieLoadResponse(titleClean, url, TvType.Movie, url) {
+                this.posterUrl = posterUrlFinal
+                this.plot = plotSummary
+                this.tags = genreList
+                if (scoreValue != null) this.score = Score.from10(scoreValue)
+                if (!trailerLink.isNullOrEmpty()) addTrailer(trailerLink)
             }
         } else {
-            newTvSeriesLoadResponse(title, url, TvType.Anime, sortedEpisodes) {
-                this.posterUrl = posterUrl
-                this.plot = plot
-                this.tags = genres
-                if (scoreText != null) this.score = Score.from10(scoreText)
-                if (!trailerUrl.isNullOrEmpty()) addTrailer(trailerUrl)
+            newTvSeriesLoadResponse(titleClean, url, TvType.Anime, sortedEpisodes) {
+                this.posterUrl = posterUrlFinal
+                this.plot = plotSummary
+                this.tags = genreList
+                if (scoreValue != null) this.score = Score.from10(scoreValue)
+                if (!trailerLink.isNullOrEmpty()) addTrailer(trailerLink)
             }
         }
     }
@@ -187,44 +185,44 @@ class Anoboy : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val document = app.get(data).document
-        var success = false
+        val pageDocument = app.get(data).document
+        var linkFound = false
 
-        document.select("select.mirror option, select.server option, option[value*=eyJ]").forEach { opt ->
-            val b64 = opt.attr("value").takeIf { it.isNotEmpty() } ?: return@forEach
+        pageDocument.select("select.mirror option, select.server option, option[value*=eyJ]").forEach { optElement ->
+            val base64Value = optElement.attr("value").takeIf { it.isNotEmpty() } ?: return@forEach
             runCatching {
-                val decodedHtml = base64Decode(b64)
-                val decodedDoc = Jsoup.parse(decodedHtml)
-                var iframeSrc = decodedDoc.selectFirst("iframe")?.attr("src") ?: return@forEach
+                val htmlContent = base64Decode(base64Value)
+                val decodedPage = Jsoup.parse(htmlContent)
+                var iframeAddress = decodedPage.selectFirst("iframe")?.attr("src") ?: return@forEach
 
-                iframeSrc = when {
-                    iframeSrc.startsWith("//") -> "https:$iframeSrc"
-                    iframeSrc.startsWith("/") -> fixUrl(iframeSrc)
-                    else -> iframeSrc
+                iframeAddress = when {
+                    iframeAddress.startsWith("//") -> "https:$iframeAddress"
+                    iframeAddress.startsWith("/") -> fixUrl(iframeAddress)
+                    else -> iframeAddress
                 }
 
-                if (iframeSrc.isNotEmpty()) {
-                    success = true
-                    loadExtractor(iframeSrc, data, subtitleCallback, callback)
-                }
-            }
-        }
-
-        if (!success) {
-            document.select("iframe[src]").forEach { iframe ->
-                var src = iframe.attr("src")
-                src = when {
-                    src.startsWith("//") -> "https:$src"
-                    src.startsWith("/") -> fixUrl(src)
-                    else -> src
-                }
-                if (src.isNotEmpty() && !src.startsWith(mainUrl)) {
-                    success = true
-                    loadExtractor(src, data, subtitleCallback, callback)
+                if (iframeAddress.isNotEmpty()) {
+                    linkFound = true
+                    loadExtractor(iframeAddress, data, subtitleCallback, callback)
                 }
             }
         }
 
-        return success
+        if (!linkFound) {
+            pageDocument.select("iframe[src]").forEach { iframeElement ->
+                var directSrc = iframeElement.attr("src")
+                directSrc = when {
+                    directSrc.startsWith("//") -> "https:$directSrc"
+                    directSrc.startsWith("/") -> fixUrl(directSrc)
+                    else -> directSrc
+                }
+                if (directSrc.isNotEmpty() && !directSrc.startsWith(mainUrl)) {
+                    linkFound = true
+                    loadExtractor(directSrc, data, subtitleCallback, callback)
+                }
+            }
+        }
+
+        return linkFound
     }
 }
