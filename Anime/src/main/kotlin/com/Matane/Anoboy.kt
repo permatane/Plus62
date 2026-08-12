@@ -1,59 +1,107 @@
 package com.Matane
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.extractors.Gofile
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
+// ============================================================
+// Extractor GOFILE CUSTOM (sesuai versi library lawas)
+// Tidak butuh registerExtractorAPI (tidak tersedia)
+// ============================================================
+class GofileAnoboy : ExtractorApi() {
+    override val name: String = "Gofile"
+    override val mainUrl: String = "https://gofile.io"
+    override val requiresReferer: Boolean = false
+
+    private data class GofileResp<T>(val data: T?, val status: String?)
+    private data class GofileServer(val server: String?)
+
+    override suspend fun getUrl(
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        runCatching {
+            // 1. Ambil server
+            val server = app.get("$mainUrl/rest/getServer")
+                .parsedSafe<GofileResp<GofileServer>>()
+                ?.data?.server ?: return@runCatching
+
+            val contentId = url.substringAfterLast("/").substringBefore("?")
+
+            // 2. Ambil konten
+            val json = app.get(
+                "https://$server.gofile.io/rest/getContent",
+                params = mapOf("contentId" to contentId),
+                headers = mapOf("User-Agent" to desktopUA)
+            ).text
+
+            // Parse manual link direct (hindari dependensi class bersarang)
+            val linkRegex = Regex(""""link"\s*:\s*"([^"]+)"""")
+            val nameRegex = Regex(""""name"\s*:\s*"([^"]+)"""")
+            val sizeRegex = Regex(""""size"\s*:\s*(\d+)""")
+
+            val links = linkRegex.findAll(json).map { it.groupValues[1] }.toList()
+            val sizes = sizeRegex.findAll(json).map { it.groupValues[1].toLongOrNull() ?: 0L }.toList()
+
+            links.forEachIndexed { i, direct ->
+                val size = sizes.getOrNull(i) ?: 0L
+                val quality = when {
+                    size > 800_000_000 -> Quality.P1080.value
+                    size > 300_000_000 -> Quality.P720.value
+                    size > 100_000_000 -> Quality.P480.value
+                    else -> Quality.Unknown.value
+                }
+
+                callback.invoke(
+                    ExtractorLink(
+                        source = this.name,
+                        name = this.name,
+                        url = direct,
+                        referer = this.mainUrl,
+                        quality = quality,
+                        isM3u8 = false
+                    )
+                )
+            }
+        }
+    }
+}
+
+// ============================================================
+// CLASS UTAMA ANOBOY
+// ============================================================
 class Anoboy : MainAPI() {
-    // ============================================================
-    // 
-    // ============================================================
-    override var mainUrl = "https://anoboy.be"
-    override var name = "Anoboy"
-    override val hasMainPage = true
-    override val hasDownloadSupport = true
-    override val supportedTypes = setOf(
+    // [FIX #1] Domain AKTIF per Agustus 2026
+    override val mainUrl: String = "https://anoboy.be"
+    override val name: String = "Anoboy"
+    override val hasMainPage: Boolean = true
+    override val hasDownloadSupport: Boolean = true
+    override val supportedTypes: Set<TvType> = setOf(
         TvType.Anime,
         TvType.AnimeMovie,
         TvType.OVA
     )
 
-    // ============================================================
-    // Header anti-Cloudflare + blokir bot
-    // ============================================================
-    private val desktopUA =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-        "AppleWebKit/537.36 (KHTML, like Gecko) " +
-        "Chrome/126.0.0.0 Safari/537.36"
+    companion object {
+        // Header anti-Cloudflare (sama persis pola Ngefilm)
+        val desktopUA: String =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) " +
+            "Chrome/126.0.0.0 Safari/537.36"
 
-    private val defaultHeaders = mapOf(
-        "User-Agent" to desktopUA,
-        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language" to "id-ID,id;q=0.8,en-US;q=0.5,en;q=0.3",
-        "Referer" to mainUrl
-    )
-
-    // ============================================================
-    // [FIX #3] Daftarkan Gofile — SUDAH ADA di library CloudStream!
-    // Tidak perlu buat extractor sendiri, cukup register host-nya
-    // ============================================================
-    init {
-        // Gofile resmi: https://recloudstream.github.io/dokka/library/.../-gofile/
-        registerExtractorAPI(Gofile().apply {
-            mainUrl = "https://gofile.io"
-        })
-        // Fallback host gofile.cc / gofile.wiki (mirror sering ganti)
-        registerExtractorAPI(Gofile().apply {
-            mainUrl = "https://gofile.cc"
-        })
+        val defaultHeaders: Map<String, String> = mapOf(
+            "User-Agent" to desktopUA,
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language" to "id-ID,id;q=0.8,en-US;q=0.5,en;q=0.3",
+            "Referer" to "https://anoboy.be"
+        )
     }
 
-    // ============================================================
-    // Helper: request dengan header konsisten
-    // ============================================================
+    private val gofileExtractor = GofileAnoboy()
+
     private suspend fun getDoc(url: String): Document {
         return app.get(url, headers = defaultHeaders).document
     }
@@ -65,25 +113,27 @@ class Anoboy : MainAPI() {
         val doc = getDoc(mainUrl)
         val items = ArrayList<HomePageList>()
 
-        // Anime Terbaru (update-anime)
-        val latest = doc.select(".post-show article").mapNotNull { el ->
-            el.toSearchResponse()
-        }
+        // Episode Terbaru
+        val latest = doc.select(".post-show article").mapNotNull { it.toSearch() }
         if (latest.isNotEmpty()) items.add(HomePageList("Episode Terbaru", latest))
 
-        // Anime Populer
-        val popular = doc.select(".sidebar .widget:nth-child(2) li").mapNotNull { el ->
+        // Populer Sidebar
+        val popular = doc.select(".sidebar li").mapNotNull { el ->
             val a = el.selectFirst("a") ?: return@mapNotNull null
-            val title = a.attr("title").ifBlank { a.text() }
-            val href = fixUrl(a.attr("href"))
-            val img = el.selectFirst("img")?.attr("src")
+            val title = a.attr("title").ifBlank { a.text() }.cleanTitle()
+            val href = fixUrlNull(a.attr("href")) ?: return@mapNotNull null
+            val img = el.selectFirst("img")?.let {
+                it.attr("src").ifBlank { it.attr("data-src") }
+            }
             newAnimeSearchResponse(title, href, TvType.Anime) {
                 this.posterUrl = img
+                addDubStatus(DubStatus.Subbed)
             }
         }
         if (popular.isNotEmpty()) items.add(HomePageList("Populer", popular))
 
-        return HomePageResponse(items)
+        // [FIX ERROR #3] Pakai helper newHomePageResponse (deprecated constructor)
+        return newHomePageResponse(items, hasNext = false)
     }
 
     // ============================================================
@@ -92,77 +142,80 @@ class Anoboy : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         val url = "$mainUrl/?s=${query.replace(" ", "+")}"
         val doc = getDoc(url)
-
-        return doc.select(".result-item, .post-show article").mapNotNull { el ->
-            el.toSearchResponse()
-        }
+        return doc.select(".result-item, .post-show article").mapNotNull { it.toSearch() }
     }
 
     // ============================================================
-    // LOAD DETAIL SERIES / HALAMAN EPISODE
+    // LOAD DETAIL SERIES / EPISODE
     // ============================================================
     override suspend fun load(url: String): LoadResponse? {
-        val doc = getDoc(url)
+        val doc = runCatching { getDoc(url) }.getOrNull() ?: return null
 
-        // Deteksi: ini halaman episode BUKAN halaman series?
-        val isEpisodePage = doc.selectFirst(".download-eps") != null &&
-                            url.contains(Regex("/episode-\\d+", RegexOption.IGNORE_CASE))
+        val rawTitle = doc.selectFirst("h1.entry-title, h1.title")?.text() ?: return null
+        val title = rawTitle.cleanTitle()
 
-        val title = doc.selectFirst("h1.entry-title, h1.title")?.text()
-            ?.replace(Regex("\\s+Subtitle\\s+Indonesia.*$", RegexOption.IGNORE_CASE), "")
-            ?.trim() ?: return null
-
-        val poster = doc.selectFirst(".post-body img, .thumb img, .poster img")
-            ?.let { it.attr("src").ifBlank { it.attr("data-src") } }
-
-        val sinopsis = doc.select(".sinopsis, .post-body p")
-            .firstOrNull { it.text().length > 80 }
-            ?.text()
-
+        val poster = doc.selectFirst(".post-body img, .thumb img, .poster img")?.let {
+            it.attr("src").ifBlank { it.attr("data-src") }
+        }
+        val sinopsis = doc.select(".sinopsis p, .post-body p")
+            .firstOrNull { it.text().length > 80 }?.text()
         val genre = doc.select(".genre a, .tagcloud a").map { it.text().trim() }
 
-        // ===== KASUS 1: User membuka HALAMAN EPISODE langsung =====
+        val isEpisodePage = url.contains(Regex("/episode-\\d+", RegexOption.IGNORE_CASE))
+
+        // ===== KASUS 1: Halaman EPISODE LANGSUNG =====
         if (isEpisodePage) {
             val epNum = Regex("episode[\\s-]+(\\d+)", RegexOption.IGNORE_CASE)
-                .find(title)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 1
+                .find(rawTitle)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 1
 
-            // Buat series "semu" dengan 1 episode
+            // [FIX ERROR #4] TIDAK PAKAI addEpisode() — masukkan langsung sebagai Map
+            // [FIX ERROR #10] TIDAK PAKAI EpisodeData — kirim URL String saja
             return newAnimeLoadResponse(title, url, TvType.Anime) {
                 this.posterUrl = poster
                 this.plot = sinopsis
                 this.tags = genre
-                addEpisode(
-                    AnoboyData(
-                        name = title,
-                        url = url,
-                        episode = epNum,
-                        posterUrl = poster
+                this.episodes = mapOf(
+                    DubStatus.Subbed to listOf(
+                        // [FIX ERROR #5] Pakai newEpisode + named argument (urutan benar!)
+                        newEpisode(
+                            data = url,
+                            name = "Episode $epNum",
+                            episode = epNum,
+                            posterUrl = poster
+                        )
                     )
                 )
             }
         }
 
-        // ===== KASUS 2: Halaman SERIES — ambil daftar semua episode =====
-        val episodes = doc.select(".episodelist a, .listeps a").mapNotNull { a ->
+        // ===== KASUS 2: Halaman SERIES =====
+        val episodeList = doc.select(".episodelist a, .listeps a").mapNotNull { a ->
             val epTitle = a.attr("title").ifBlank { a.text() }
-            val epHref = fixUrl(a.attr("href"))
+            val epHref = fixUrlNull(a.attr("href")) ?: return@mapNotNull null
             val num = Regex("(\\d+)(?:\\s*end)?$", RegexOption.IGNORE_CASE)
                 .find(epTitle)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
-            Episode(num, epHref, epTitle)
-        }.reversed() // episode tertua di atas
 
-        if (episodes.isEmpty()) return null
+            // [FIX ERROR #5] Parameter URUTAN & TIPE BENAR: data=String pertama
+            newEpisode(
+                data = epHref,
+                name = epTitle,
+                episode = num
+            )
+        }.reversed()
 
+        if (episodeList.isEmpty()) return null
+
+        // [FIX ERROR #6] episodes harus Map<DubStatus, List>, BUKAN List langsung
         return newAnimeLoadResponse(title, url, TvType.Anime) {
             this.posterUrl = poster
             this.plot = sinopsis
             this.tags = genre
-            this.episodes = episodes
+            this.episodes = mapOf(DubStatus.Subbed to episodeList)
         }
     }
 
     // ============================================================
-    // [FIX UTAMA] LOAD LINKS — ekstrak Gofile & kirim ke player
+    // LOAD LINKS → PLAY VIDEO
     // ============================================================
     override suspend fun loadLinks(
         data: String,
@@ -170,61 +223,34 @@ class Anoboy : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val doc = try {
-            getDoc(data)
-        } catch (e: Exception) {
-            return false
-        }
+        val doc = runCatching { getDoc(data) }.getOrNull() ?: return false
 
-        // [FIX #2] Selector DOWNLOAD — disesuaikan Agustus 2026
-        // Struktur: <div class="download-eps">
-        //             <strong>720p</strong>
-        //             <a href="https://gofile.io/d/xxxx">gofile</a>
-        //           </div>
-        val links = doc.select(".download-eps a, .download a").mapNotNull { a ->
+        // Selector download sesuai struktur anoboy.be Agustus 2026
+        val downloadAnchors = doc.select(".download-eps a, .download a")
+
+        val gofileUrls = downloadAnchors.mapNotNull { a ->
             val href = a.attr("href").trim()
-            if (href.isBlank() || href == "#") return@mapNotNull null
-
-            val qualityText = a.previousElementSibling()?.text()
-                ?.filter { it.isDigit() }
-                ?.toIntOrNull()
-                ?: Regex("(\\d{3,4})p?").find(a.parent()?.text() ?: "")
-                    ?.groupValues?.getOrNull(1)?.toIntOrNull()
-
-            val quality = when (qualityText) {
-                in 200..399 -> Qualities.P360.value
-                in 400..540 -> Qualities.P480.value
-                in 650..799 -> Qualities.P720.value
-                in 900..1100 -> Qualities.P1080.value
-                else -> Qualities.Unknown.value
-            }
-
-            Pair(href, quality)
+            if (href.contains("gofile", ignoreCase = true)) href else null
         }
 
-        if (links.isEmpty()) return false
-
-        // Untuk SETIAP link download → lewati ke extractor resmi CloudStream
-        links.forEach { (url, quality) ->
-            try {
-                // [FIX #3] Pakai loadExtractor() — otomatis pilih Gofile extractor
-                // yang sudah kita register di init{}
-                loadExtractor(
-                    url = url,
-                    referer = data,
-                    subtitleCallback = subtitleCallback,
-                    callback = { link ->
-                        // Override kualitas supaya akurat di UI
-                        callback.invoke(
-                            link.copy(
-                                quality = if (link.quality == Qualities.Unknown.value)
-                                    quality else link.quality
-                            )
-                        )
+        if (gofileUrls.isEmpty()) {
+            // Fallback: coba semua link non-# lewat loadExtractor umum
+            downloadAnchors.forEach { a ->
+                val href = a.attr("href").trim()
+                if (href.isNotBlank() && href != "#") {
+                    runCatching {
+                        loadExtractor(href, data, subtitleCallback, callback)
                     }
-                )
-            } catch (_: Exception) {
-                // Skip link gagal, lanjut ke mirror berikutnya
+                }
+            }
+            return true
+        }
+
+        // [FIX ERROR #1, #2, #7, #8, #9] Ekstrak Gofile langsung
+        // Tidak ada registerExtractorAPI → panggil getUrl() instance sendiri
+        gofileUrls.forEach { goUrl ->
+            runCatching {
+                gofileExtractor.getUrl(goUrl, data, subtitleCallback, callback)
             }
         }
 
@@ -232,14 +258,12 @@ class Anoboy : MainAPI() {
     }
 
     // ============================================================
-    // Helper: Element → SearchResponse
+    // HELPER FUNGSI
     // ============================================================
-    private fun Element.toSearchResponse(): SearchResponse? {
+    private fun Element.toSearch(): SearchResponse? {
         val a = selectFirst("a[href]") ?: return null
-        val title = a.attr("title").ifBlank { a.text() }
-            .replace(Regex("\\s+Subtitle\\s+Indonesia.*$", RegexOption.IGNORE_CASE), "")
-            .trim()
-        val href = fixUrl(a.attr("href"))
+        val title = a.attr("title").ifBlank { a.text() }.cleanTitle()
+        val href = fixUrlNull(a.attr("href")) ?: return null
         val img = selectFirst("img")?.let {
             it.attr("src").ifBlank { it.attr("data-src") }
         }
@@ -249,15 +273,9 @@ class Anoboy : MainAPI() {
         }
     }
 
-    // ============================================================
-    // Data class untuk episode dari halaman episode langsung
-    // ============================================================
-    data class AnoboyData(
-        val name: String,
-        val url: String,
-        val episode: Int,
-        val posterUrl: String? = null
-    ) : EpisodeData {
-        override fun toString(): String = url
+    private fun String.cleanTitle(): String {
+        return this.replace(Regex("\\s+Subtitle\\s+Indonesia.*$", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\s+\\[.*?\\]"), "")
+            .trim()
     }
 }
