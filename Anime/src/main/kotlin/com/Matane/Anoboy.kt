@@ -109,7 +109,7 @@ class Anoboy : MainAPI() {
             statusText?.contains("Ongoing", ignoreCase = true) == true -> ShowStatus.Ongoing
             statusText?.contains("Completed", ignoreCase = true) == true -> ShowStatus.Completed
             statusText?.contains("Tamat", ignoreCase = true) == true -> ShowStatus.Completed
-            statusText?.contains("Upcoming", ignoreCase = true) == true -> ShowStatus.Upcoming
+            statusText?.contains("Upcoming", ignoreCase = true) == true -> ShowStatus.Ongoing
             else -> null
         }
 
@@ -136,7 +136,6 @@ class Anoboy : MainAPI() {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.tags = genres
-                this.status = status
                 if (score != null) this.score = Score.from10(score)
                 if (!trailerUrl.isNullOrEmpty()) addTrailer(trailerUrl)
             }
@@ -145,7 +144,6 @@ class Anoboy : MainAPI() {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.tags = genres
-                this.status = status
                 if (score != null) this.score = Score.from10(score)
                 if (!trailerUrl.isNullOrEmpty()) addTrailer(trailerUrl)
             }
