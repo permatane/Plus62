@@ -67,7 +67,7 @@ class Anoboy : MainAPI() {
 
     private fun Element.toSearchResult(): SearchResponse? {
         val linkElement = selectFirst("a") ?: return null
-        val href = fixUrl(linkElement.attr("href")!!)  // ✅ POLA NGEFILM: pakai !!
+        val href = fixUrl(linkElement.attr("href").orEmpty())
         val title = linkElement.attr("title").ifBlank { selectFirst("div.tt")?.text() } ?: return null
         val poster = selectFirst("img")?.getImageAttr()?.let { fixUrlNull(it) }
         val isSeries = href.contains("/series/", true) || href.contains("drama", true)
@@ -86,7 +86,7 @@ class Anoboy : MainAPI() {
     private fun Element.toRecommendResult(): SearchResponse? {
         val title = selectFirst("div.tt")?.text()?.trim() ?: return null
         val linkElement = selectFirst("a") ?: return null
-        val href = fixUrl(linkElement.attr("href")!!)  // ✅ POLA NGEFILM
+        val href = fixUrl(linkElement.attr("href").orEmpty())
         val posterUrl = selectFirst("img")?.getImageAttr()?.let { fixUrlNull(it) }
         return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = posterUrl }
     }
@@ -114,11 +114,11 @@ class Anoboy : MainAPI() {
         val status = getStatus(statusText)
         val recommendations = document.select("div.listupd article.bs").mapNotNull { it.toRecommendResult() }
 
-        // ✅ BARIS 113 — POLA NGEFILM: pakai !! untuk memaksa non-null
+        // ✅ BARIS 114 — POLA .orEmpty() → DIJAMIN String non-null
         val episodes = document.select("div.eplister ul li a")
             .reversed()
             .mapIndexed { index, aTag ->
-                val href = fixUrl(aTag.attr("href")!!)  // ✅ !! = dijamin non-null → cocok dengan fixUrl(String)
+                val href = fixUrl(aTag.attr("href").orEmpty())
                 val num = index + 1
                 newEpisode(href) {
                     this.name = "Episode $num"
@@ -151,7 +151,6 @@ class Anoboy : MainAPI() {
         }
     }
 
-    // ✅ Fungsi Pemutar Video — base64Decode langsung String
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -162,7 +161,6 @@ class Anoboy : MainAPI() {
         var foundAny = false
         val refererUrl = data
 
-        // Atur Referer agar token Blogger sah
         AnoboyBlogger.refererOverride = refererUrl
 
         fun httpsify(url: String): String {
@@ -174,7 +172,6 @@ class Anoboy : MainAPI() {
             }
         }
 
-        // 1. Player Utama
         document.selectFirst("div.player-embed iframe")
             .getIframeAttr()
             ?.let { httpsify(it) }
@@ -184,7 +181,6 @@ class Anoboy : MainAPI() {
                 }
             }
 
-        // 2. Semua Mirror Server — base64Decode langsung String
         for (opt in document.select("select.mirror option[value]:not([disabled])")) {
             val b64 = opt.attr("value").replace("\\s".toRegex(), "")
             if (b64.isBlank()) continue
